@@ -1,0 +1,45 @@
+{
+  "name": "n8n-nodes-formfex",
+  "version": "1.0.0",
+  "description": "n8n community node for Formfex — AI-powered form builder",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": ["dist/credentials/FormfexApi.credentials.js"],
+    "nodes": [
+      "dist/nodes/Formfex/Formfex.node.js",
+      "dist/nodes/Formfex/FormfexTrigger.node.js"
+    ]
+  },
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "formfex",
+    "forms",
+    "automation",
+    "ai",
+    "form-builder"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint . --ext .ts",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  },
+  "devDependencies": {
+    "n8n-workflow": "^1.72.0",
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/formfex/n8n-nodes-formfex"
+  }
+}

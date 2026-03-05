@@ -1,0 +1,8 @@
+*.ts
+!dist/**/*.js
+!dist/**/*.d.ts
+tsconfig.json
+.eslintrc.js
+test/
+node_modules/
+.github/
