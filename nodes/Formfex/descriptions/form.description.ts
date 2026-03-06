@@ -54,6 +54,13 @@ export const formFields: INodeProperties[] = [
     options: [
       { displayName: 'Description', name: 'description', type: 'string', default: '' },
       { displayName: 'Language', name: 'language', type: 'string', default: 'en', description: 'Form language code (en, tr, es, it, de, nl)' },
+      {
+        displayName: 'Schema (JSON)',
+        name: 'schema',
+        type: 'json',
+        default: '',
+        description: 'Full form schema JSON. Use this to pass an AI-generated schema (e.g. {{ $json.form }}). If empty, a blank form is created.',
+      },
     ],
   },
 

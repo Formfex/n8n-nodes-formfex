@@ -10,7 +10,7 @@ export class FormfexTrigger implements INodeType {
   description: INodeTypeDescription = {
     displayName: 'Formfex Trigger',
     name: 'formfexTrigger',
-    icon: 'file:Formfex.svg',
+    icon: 'file:Formfex.png',
     group: ['trigger'],
     version: 1,
     subtitle: '=New Response on Form',
