@@ -5,6 +5,7 @@ import type {
   INodeTypeDescription,
 } from 'n8n-workflow';
 import { NodeApiError } from 'n8n-workflow';
+import * as crypto from 'crypto';
 import { formOperations, formFields } from './descriptions/form.description';
 import { responseOperations, responseFields } from './descriptions/response.description';
 import { aiOperations, aiFields } from './descriptions/ai.description';
@@ -14,7 +15,7 @@ export class Formfex implements INodeType {
   description: INodeTypeDescription = {
     displayName: 'Formfex',
     name: 'formfex',
-    icon: 'file:Formfex.svg',
+    icon: 'file:Formfex.png',
     group: ['transform'],
     version: 1,
     subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
@@ -95,9 +96,38 @@ async function executeFormOperation(
   if (operation === 'create') {
     const title = this.getNodeParameter('title', i) as string;
     const additionalFields = this.getNodeParameter('additionalFields', i, {}) as Record<string, any>;
-    const body: Record<string, any> = { title };
-    if (additionalFields.description) body.description = additionalFields.description;
-    if (additionalFields.language) body.language = additionalFields.language;
+    const language = additionalFields.language || 'en';
+
+    let schema: Record<string, any>;
+    if (additionalFields.schema) {
+      schema = typeof additionalFields.schema === 'string'
+        ? JSON.parse(additionalFields.schema)
+        : additionalFields.schema;
+    } else {
+      schema = {
+        version: '1.0',
+        schemaVersion: '2026-02',
+        meta: {
+          title,
+          description: additionalFields.description || '',
+          language,
+        },
+        settings: {
+          layout: 'single-column',
+          submitAction: 'default',
+        },
+        sections: [
+          {
+            id: crypto.randomUUID(),
+            title: 'Section 1',
+            order: 0,
+          },
+        ],
+        fields: [],
+      };
+    }
+
+    const body: Record<string, any> = { title, schema };
     const result = await formfexApiRequest.call(this, 'POST', '/forms', body);
     return result.data;
   }
@@ -183,6 +213,15 @@ async function executeResponseOperation(
 ): Promise<any> {
   const formId = this.getNodeParameter('formId', i) as string;
   validateUuid(this, formId, 'Form ID');
+
+  if (operation === 'count') {
+    const filters = this.getNodeParameter('filters', i, {}) as Record<string, any>;
+    const query: Record<string, any> = {};
+    if (filters.startDate) query.startDate = filters.startDate;
+    if (filters.endDate) query.endDate = filters.endDate;
+    const result = await formfexApiRequest.call(this, 'GET', `/forms/${safePath(formId)}/responses/count`, undefined, query);
+    return result.data;
+  }
 
   if (operation === 'get') {
     const responseId = this.getNodeParameter('responseId', i) as string;

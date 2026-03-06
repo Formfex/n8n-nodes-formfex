@@ -8,6 +8,7 @@ export const responseOperations: INodeProperties[] = [
     noDataExpression: true,
     displayOptions: { show: { resource: ['response'] } },
     options: [
+      { name: 'Count', value: 'count', action: 'Count responses', description: 'Get the number of responses for a form' },
       { name: 'Get', value: 'get', action: 'Get a response', description: 'Get a single form response' },
       { name: 'Get Many', value: 'getMany', action: 'Get many responses', description: 'List form responses (paginated)' },
     ],
@@ -25,6 +26,20 @@ export const responseFields: INodeProperties[] = [
     default: '',
     description: 'The UUID of the form',
     displayOptions: { show: { resource: ['response'] } },
+  },
+
+  // ── Count Filters ──
+  {
+    displayName: 'Filters',
+    name: 'filters',
+    type: 'collection',
+    placeholder: 'Add Filter',
+    default: {},
+    displayOptions: { show: { resource: ['response'], operation: ['count'] } },
+    options: [
+      { displayName: 'Start Date', name: 'startDate', type: 'dateTime', default: '', description: 'Only count responses submitted after this date' },
+      { displayName: 'End Date', name: 'endDate', type: 'dateTime', default: '', description: 'Only count responses submitted before this date' },
+    ],
   },
 
   // ── Response ID (Get) ──
