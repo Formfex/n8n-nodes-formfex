@@ -1,6 +1,6 @@
 # n8n-nodes-formfex
 
-[n8n](https://n8n.io/) community node for [Formfex](https://formfex.com) — AI-powered form builder.
+[n8n](https://n8n.io/) community node for [Formfex](https://formfex.com) — AI-powered form infrastructure and data collection platform.
 
 Create forms, collect responses, trigger automations, and generate forms with AI directly from your n8n workflows.
 
