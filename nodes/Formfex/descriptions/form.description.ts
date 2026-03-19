@@ -52,7 +52,7 @@ export const formFields: INodeProperties[] = [
     default: {},
     displayOptions: { show: { resource: ['form'], operation: ['create'] } },
     options: [
-      { displayName: 'Description', name: 'description', type: 'string', default: '' },
+      { displayName: 'Description', name: 'description', type: 'string', default: '', description: 'Optional description for the form' },
       { displayName: 'Language', name: 'language', type: 'string', default: 'en', description: 'Form language code (en, tr, es, it, de, nl)' },
       {
         displayName: 'Schema (JSON)',
@@ -73,7 +73,7 @@ export const formFields: INodeProperties[] = [
     default: {},
     displayOptions: { show: { resource: ['form'], operation: ['update'] } },
     options: [
-      { displayName: 'Title', name: 'title', type: 'string', default: '' },
+      { displayName: 'Title', name: 'title', type: 'string', default: '', description: 'New title for the form' },
     ],
   },
 
@@ -95,6 +95,7 @@ export const formFields: INodeProperties[] = [
           { name: 'Private', value: 'PRIVATE' },
         ],
         default: 'PUBLIC',
+        description: 'Form visibility: PUBLIC (anyone with link) or PRIVATE (OTP required)',
       },
     ],
   },

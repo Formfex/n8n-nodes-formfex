@@ -20,6 +20,16 @@ export const aiOperations: INodeProperties[] = [
 export const aiFields: INodeProperties[] = [
   // ── Generate Form ──
   {
+    displayName: 'Title',
+    name: 'title',
+    type: 'string',
+    required: true,
+    default: '',
+    placeholder: '30-Day Check-in: John Doe',
+    description: 'Title for the generated form',
+    displayOptions: { show: { resource: ['ai'], operation: ['generateForm'] } },
+  },
+  {
     displayName: 'Prompt',
     name: 'prompt',
     type: 'string',

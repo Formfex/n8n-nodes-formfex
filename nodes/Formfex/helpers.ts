@@ -28,12 +28,56 @@ export function safePath(id: string): string {
 
 /** Error map for friendly user-facing messages. */
 const ERROR_MAP: Record<number, string> = {
+  400: 'Bad request — see details below.',
   401: 'Authentication failed. Check your Formfex API key.',
   402: 'Insufficient credits. Upgrade your Formfex plan.',
   403: 'Your API key does not have the required scope for this operation.',
   404: 'The requested resource was not found.',
   429: 'Rate limit exceeded. Please slow down your requests.',
 };
+
+/** Extract detailed error info from Formfex API response body. */
+function extractErrorDetails(error: any): string {
+  // n8n wraps HTTP errors in different structures depending on the helper used.
+  // Try multiple paths to find the response body.
+  const candidates = [
+    error?.response?.body,
+    error?.cause?.response?.body,
+    error?.body,
+    error?.description,
+    error?.error,
+  ];
+
+  for (const raw of candidates) {
+    if (!raw) continue;
+
+    let parsed = raw;
+    if (typeof raw === 'string') {
+      try { parsed = JSON.parse(raw); } catch { continue; }
+    }
+
+    if (typeof parsed !== 'object' || parsed === null) continue;
+
+    // 1. Use details array (class-validator produces these)
+    if (Array.isArray(parsed.details) && parsed.details.length > 0) {
+      return `Validation errors: ${parsed.details.join('; ')}`;
+    }
+
+    // 2. Use message if it contains useful info (not just "Bad Request")
+    if (parsed.message && parsed.message !== 'Bad Request' && parsed.message !== 'Bad request') {
+      const msg = typeof parsed.message === 'string' ? parsed.message : JSON.stringify(parsed.message);
+      if (msg.length > 15) return msg; // Skip very short generic messages
+    }
+  }
+
+  // 3. Fallback: try to extract from the error message itself
+  const errMsg = error?.message ?? '';
+  if (errMsg.includes('must be') || errMsg.includes('should be') || errMsg.includes('is not') || errMsg.includes('expected')) {
+    return errMsg;
+  }
+
+  return '';
+}
 
 /** Make an authenticated API request to Formfex. */
 export async function formfexApiRequest(
@@ -59,10 +103,14 @@ export async function formfexApiRequest(
   } catch (error: any) {
     const statusCode = error?.statusCode ?? error?.response?.statusCode;
     const friendlyMessage = statusCode ? ERROR_MAP[statusCode] : undefined;
+    const errorDetails = extractErrorDetails(error);
+
+    const description = errorDetails
+      || sanitizeError(error?.message ?? '');
 
     throw new NodeApiError(this.getNode(), error, {
       message: friendlyMessage ?? `Formfex API error (${statusCode ?? 'unknown'})`,
-      description: sanitizeError(error?.message ?? ''),
+      description,
     });
   }
 }

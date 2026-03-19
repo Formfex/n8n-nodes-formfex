@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-formfex",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "n8n community node for Formfex — AI-powered form infrastructure and data collection platform",
   "license": "MIT",
   "author": {
@@ -17,7 +17,8 @@
     ],
     "nodes": [
       "dist/nodes/Formfex/Formfex.node.js",
-      "dist/nodes/Formfex/FormfexTrigger.node.js"
+      "dist/nodes/Formfex/FormfexTrigger.node.js",
+      "dist/nodes/Formfex/FormfexWebhookTrigger.node.js"
     ]
   },
   "keywords": [
@@ -38,7 +39,7 @@
     "n8n-workflow": "*"
   },
   "devDependencies": {
-    "n8n-workflow": "^1.72.0",
+    "n8n-workflow": "^2.11.0",
     "typescript": "^5.7.0",
     "@types/node": "^22.0.0"
   },

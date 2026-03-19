@@ -9,6 +9,7 @@ import * as crypto from 'crypto';
 import { formOperations, formFields } from './descriptions/form.description';
 import { responseOperations, responseFields } from './descriptions/response.description';
 import { aiOperations, aiFields } from './descriptions/ai.description';
+import { webhookOperations, webhookFields } from './descriptions/webhook.description';
 import { formfexApiRequest, validateUuid, safePath, MAX_PAGES } from './helpers';
 
 export class Formfex implements INodeType {
@@ -22,7 +23,7 @@ export class Formfex implements INodeType {
     description: 'Interact with Formfex forms, responses, and AI features',
     defaults: { name: 'Formfex' },
     inputs: ['main'],
-    outputs: ['main'],
+    outputs: ['main', 'ai_tool'],
     usableAsTool: true,
     credentials: [{ name: 'formfexApi', required: true }],
     requestDefaults: {
@@ -39,6 +40,7 @@ export class Formfex implements INodeType {
           { name: 'AI', value: 'ai' },
           { name: 'Form', value: 'form' },
           { name: 'Response', value: 'response' },
+          { name: 'Webhook', value: 'webhook' },
         ],
         default: 'form',
       },
@@ -48,6 +50,8 @@ export class Formfex implements INodeType {
       ...responseFields,
       ...aiOperations,
       ...aiFields,
+      ...webhookOperations,
+      ...webhookFields,
     ],
   };
 
@@ -68,6 +72,8 @@ export class Formfex implements INodeType {
           responseData = await executeResponseOperation.call(this, operation, i);
         } else if (resource === 'ai') {
           responseData = await executeAiOperation.call(this, operation, i);
+        } else if (resource === 'webhook') {
+          responseData = await executeWebhookOperation.call(this, operation, i);
         }
 
         if (Array.isArray(responseData)) {
@@ -86,6 +92,7 @@ export class Formfex implements INodeType {
 
     return [returnData];
   }
+
 }
 
 async function executeFormOperation(
@@ -273,16 +280,18 @@ async function executeAiOperation(
   i: number,
 ): Promise<any> {
   if (operation === 'generateForm') {
+    const title = this.getNodeParameter('title', i) as string;
     const prompt = this.getNodeParameter('prompt', i) as string;
     const language = this.getNodeParameter('language', i, 'en') as string;
 
-    // Dispatch the job
+    // Step 1: Dispatch AI job
     const dispatchResult = await formfexApiRequest.call(this, 'POST', '/ai/generate-form', { prompt, language });
     const jobId = dispatchResult.data.jobId;
 
-    // Poll until done (max 20 attempts, 3s interval = 60s max)
+    // Step 2: Poll until done (max 20 attempts, 3s interval = 60s max)
     const MAX_POLL_ATTEMPTS = 20;
     const POLL_INTERVAL_MS = 3000;
+    let schema: any = null;
 
     for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
       await sleep(POLL_INTERVAL_MS);
@@ -290,7 +299,8 @@ async function executeAiOperation(
       const job = jobResult.data;
 
       if (job.status === 'DONE') {
-        return job;
+        schema = job.output?.form ?? job.output;
+        break;
       }
       if (job.status === 'FAILED') {
         throw new NodeApiError(this.getNode(), {
@@ -301,10 +311,26 @@ async function executeAiOperation(
       // PENDING or PROCESSING — keep polling
     }
 
-    throw new NodeApiError(this.getNode(), {
-      message: 'AI form generation timed out',
-      description: `Job ${jobId} did not complete within ${MAX_POLL_ATTEMPTS * POLL_INTERVAL_MS / 1000} seconds`,
+    if (!schema) {
+      throw new NodeApiError(this.getNode(), {
+        message: 'AI form generation timed out',
+        description: `Job ${jobId} did not complete within ${MAX_POLL_ATTEMPTS * POLL_INTERVAL_MS / 1000} seconds`,
+      });
+    }
+
+    // Step 3: Create the form in the database with the AI-generated schema
+    let parsedSchema = typeof schema === 'string' ? JSON.parse(schema) : schema;
+
+    // Ensure language is set in the schema meta
+    if (parsedSchema?.meta) {
+      parsedSchema.meta.language = language;
+    }
+
+    const createResult = await formfexApiRequest.call(this, 'POST', '/forms', {
+      title,
+      schema: parsedSchema,
     });
+    return createResult.data;
   }
 
   if (operation === 'getJobStatus') {
@@ -325,12 +351,47 @@ async function executeAiOperation(
   if (operation === 'analyticsChat') {
     const formId = this.getNodeParameter('formId', i) as string;
     validateUuid(this, formId, 'Form ID');
-    const message = this.getNodeParameter('message', i) as string;
+    const rawMessage = this.getNodeParameter('message', i) as string;
+    const message = rawMessage.length > 2000 ? rawMessage.substring(0, 2000) : rawMessage;
     const sessionId = this.getNodeParameter('sessionId', i, '') as string;
     const body: Record<string, any> = { message };
-    if (sessionId) body.sessionId = sessionId;
+    // Only include sessionId if it's a valid UUID
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (sessionId && UUID_RE.test(sessionId)) body.sessionId = sessionId;
     const result = await formfexApiRequest.call(this, 'POST', `/forms/${safePath(formId)}/analytics-chat`, body);
     return result.data;
+  }
+
+  throw new NodeApiError(this.getNode(), { message: `Unknown operation: ${operation}` });
+}
+
+async function executeWebhookOperation(
+  this: IExecuteFunctions,
+  operation: string,
+  i: number,
+): Promise<any> {
+  if (operation === 'create') {
+    const url = this.getNodeParameter('webhookUrl', i) as string;
+    const events = this.getNodeParameter('events', i) as string[];
+    const description = this.getNodeParameter('webhookDescription', i, '') as string;
+
+    const body: Record<string, any> = { url, events };
+    if (description) body.description = description;
+
+    const result = await formfexApiRequest.call(this, 'POST', '/webhooks', body);
+    return result.data;
+  }
+
+  if (operation === 'getMany') {
+    const result = await formfexApiRequest.call(this, 'GET', '/webhooks');
+    return result.data ?? result;
+  }
+
+  if (operation === 'delete') {
+    const webhookId = this.getNodeParameter('webhookId', i) as string;
+    validateUuid(this, webhookId, 'Webhook ID');
+    const result = await formfexApiRequest.call(this, 'DELETE', `/webhooks/${safePath(webhookId)}`);
+    return result.data ?? { success: true };
   }
 
   throw new NodeApiError(this.getNode(), { message: `Unknown operation: ${operation}` });
