@@ -19,7 +19,7 @@ export class FormfexWebhookTrigger implements INodeType {
     version: 1,
     subtitle: '=Webhook: {{$parameter["event"]}}',
     description:
-      'Triggers instantly when a Formfex event occurs (e.g. new form response)',
+      'Triggers instantly when a Formfex event occurs (e.g. new form response, smart form session completed)',
     defaults: { name: 'Formfex Webhook Trigger' },
     inputs: [],
     outputs: ['main'],
@@ -64,6 +64,12 @@ export class FormfexWebhookTrigger implements INodeType {
             name: 'Analytics Report Completed',
             value: 'ANALYTICS_REPORT_COMPLETED',
             description: 'Triggers when a smart analytics report is ready',
+          },
+          {
+            name: 'Smart Form Session Completed',
+            value: 'SMART_FORM_SESSION_COMPLETED',
+            description:
+              'Triggers when a smart form interview session is completed (including expired sessions with 3+ answers)',
           },
         ],
       },
@@ -193,7 +199,8 @@ export class FormfexWebhookTrigger implements INodeType {
       ...dynamicFormIds,
     ]);
 
-    const payloadFormId = body?.data?.formId as string | undefined;
+    // Check both formId (regular forms) and smartFormId (smart forms)
+    const payloadFormId = (body?.data?.formId ?? body?.data?.smartFormId) as string | undefined;
 
     // If there are allowed form IDs and the payload doesn't match, skip
     if (allowedFormIds.size > 0 && payloadFormId && !allowedFormIds.has(payloadFormId)) {
@@ -204,7 +211,8 @@ export class FormfexWebhookTrigger implements INodeType {
       {
         json: {
           event: body?.type ?? body?.event,
-          formId: payloadFormId,
+          formId: body?.data?.formId ?? undefined,
+          smartFormId: body?.data?.smartFormId ?? undefined,
           ...body?.data,
           _webhookPayload: body,
         },

@@ -10,6 +10,7 @@ import { formOperations, formFields } from './descriptions/form.description';
 import { responseOperations, responseFields } from './descriptions/response.description';
 import { aiOperations, aiFields } from './descriptions/ai.description';
 import { webhookOperations, webhookFields } from './descriptions/webhook.description';
+import { smartFormOperations, smartFormFields } from './descriptions/smartForm.description';
 import { formfexApiRequest, validateUuid, safePath, MAX_PAGES } from './helpers';
 
 export class Formfex implements INodeType {
@@ -20,7 +21,7 @@ export class Formfex implements INodeType {
     group: ['transform'],
     version: 1,
     subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-    description: 'Interact with Formfex forms, responses, and AI features',
+    description: 'Create forms, manage smart forms, read responses, and run AI analytics with Formfex',
     defaults: { name: 'Formfex' },
     inputs: ['main'],
     outputs: ['main', 'ai_tool'],
@@ -40,6 +41,7 @@ export class Formfex implements INodeType {
           { name: 'AI', value: 'ai' },
           { name: 'Form', value: 'form' },
           { name: 'Response', value: 'response' },
+          { name: 'Smart Form', value: 'smartForm' },
           { name: 'Webhook', value: 'webhook' },
         ],
         default: 'form',
@@ -50,6 +52,8 @@ export class Formfex implements INodeType {
       ...responseFields,
       ...aiOperations,
       ...aiFields,
+      ...smartFormOperations,
+      ...smartFormFields,
       ...webhookOperations,
       ...webhookFields,
     ],
@@ -72,6 +76,8 @@ export class Formfex implements INodeType {
           responseData = await executeResponseOperation.call(this, operation, i);
         } else if (resource === 'ai') {
           responseData = await executeAiOperation.call(this, operation, i);
+        } else if (resource === 'smartForm') {
+          responseData = await executeSmartFormOperation.call(this, operation, i);
         } else if (resource === 'webhook') {
           responseData = await executeWebhookOperation.call(this, operation, i);
         }
@@ -395,6 +401,259 @@ async function executeWebhookOperation(
   }
 
   throw new NodeApiError(this.getNode(), { message: `Unknown operation: ${operation}` });
+}
+
+async function executeSmartFormOperation(
+  this: IExecuteFunctions,
+  operation: string,
+  i: number,
+): Promise<any> {
+  // ── Create ──
+  if (operation === 'create') {
+    const purpose = this.getNodeParameter('purpose', i) as string;
+    const additionalFields = this.getNodeParameter('additionalFields', i, {}) as Record<string, any>;
+
+    const body: Record<string, any> = { purpose };
+    if (additionalFields.title) body.title = additionalFields.title;
+    if (additionalFields.description) body.description = additionalFields.description;
+    if (additionalFields.targetAudience) body.targetAudience = additionalFields.targetAudience;
+    if (additionalFields.language) body.language = additionalFields.language;
+    if (additionalFields.maxQuestions) body.maxQuestions = additionalFields.maxQuestions;
+    if (additionalFields.isPrivate !== undefined) body.isPrivate = additionalFields.isPrivate;
+
+    const result = await formfexApiRequest.call(this, 'POST', '/smart-forms', body);
+    return result.data;
+  }
+
+  // ── Get ──
+  if (operation === 'get') {
+    const id = this.getNodeParameter('smartFormId', i) as string;
+    validateUuid(this, id, 'Smart Form ID');
+    const result = await formfexApiRequest.call(this, 'GET', `/smart-forms/${safePath(id)}`);
+    return result.data;
+  }
+
+  // ── Get Many ──
+  if (operation === 'getMany') {
+    const returnAll = this.getNodeParameter('returnAll', i) as boolean;
+    const filters = this.getNodeParameter('filters', i, {}) as Record<string, any>;
+    const limit = returnAll ? 50 : (this.getNodeParameter('limit', i) as number);
+
+    const query: Record<string, any> = { limit, page: 1 };
+    if (filters.search) query.search = filters.search;
+    if (filters.status) query.status = filters.status;
+
+    if (!returnAll) {
+      const result = await formfexApiRequest.call(this, 'GET', '/smart-forms', undefined, query);
+      return result.data.items ?? result.data;
+    }
+
+    // Paginate
+    const allItems: any[] = [];
+    let page = 1;
+    let hasMore = true;
+    while (hasMore && page <= MAX_PAGES) {
+      query.page = page;
+      const result = await formfexApiRequest.call(this, 'GET', '/smart-forms', undefined, query);
+      const items = result.data.items ?? result.data ?? [];
+      allItems.push(...items);
+      hasMore = result.data.hasMore ?? items.length === limit;
+      page++;
+    }
+    if (page > MAX_PAGES) {
+      allItems.push({
+        _warning: `Return All truncated at ${MAX_PAGES * limit} records. Use filters to narrow the dataset.`,
+      });
+    }
+    return allItems;
+  }
+
+  // ── Update ──
+  if (operation === 'update') {
+    const id = this.getNodeParameter('smartFormId', i) as string;
+    validateUuid(this, id, 'Smart Form ID');
+    const updateFields = this.getNodeParameter('updateFields', i, {}) as Record<string, any>;
+    const result = await formfexApiRequest.call(
+      this,
+      'PATCH',
+      `/smart-forms/${safePath(id)}`,
+      updateFields,
+    );
+    return result.data;
+  }
+
+  // ── Delete ──
+  if (operation === 'delete') {
+    const id = this.getNodeParameter('smartFormId', i) as string;
+    validateUuid(this, id, 'Smart Form ID');
+    const result = await formfexApiRequest.call(
+      this,
+      'DELETE',
+      `/smart-forms/${safePath(id)}`,
+    );
+    return result.data ?? { success: true };
+  }
+
+  // ── Publish ──
+  if (operation === 'publish') {
+    const id = this.getNodeParameter('smartFormId', i) as string;
+    validateUuid(this, id, 'Smart Form ID');
+    const result = await formfexApiRequest.call(
+      this,
+      'POST',
+      `/smart-forms/${safePath(id)}/publish`,
+    );
+    return result.data;
+  }
+
+  // ── Unpublish ──
+  if (operation === 'unpublish') {
+    const id = this.getNodeParameter('smartFormId', i) as string;
+    validateUuid(this, id, 'Smart Form ID');
+    const mode = this.getNodeParameter('unpublishMode', i) as string;
+    const result = await formfexApiRequest.call(
+      this,
+      'POST',
+      `/smart-forms/${safePath(id)}/unpublish`,
+      { mode },
+    );
+    return result.data;
+  }
+
+  // ── List Sessions ──
+  if (operation === 'listSessions') {
+    const id = this.getNodeParameter('smartFormId', i) as string;
+    validateUuid(this, id, 'Smart Form ID');
+    const returnAll = this.getNodeParameter('returnAll', i) as boolean;
+    const sessionFilters = this.getNodeParameter('sessionFilters', i, {}) as Record<string, any>;
+    const limit = returnAll ? 100 : (this.getNodeParameter('limit', i) as number);
+
+    const query: Record<string, any> = { limit, page: 1 };
+    if (sessionFilters.status) query.status = sessionFilters.status;
+
+    if (!returnAll) {
+      const result = await formfexApiRequest.call(
+        this,
+        'GET',
+        `/smart-forms/${safePath(id)}/sessions`,
+        undefined,
+        query,
+      );
+      return result.data.items ?? result.data;
+    }
+
+    // Paginate
+    const allItems: any[] = [];
+    let page = 1;
+    let hasMore = true;
+    while (hasMore && page <= MAX_PAGES) {
+      query.page = page;
+      const result = await formfexApiRequest.call(
+        this,
+        'GET',
+        `/smart-forms/${safePath(id)}/sessions`,
+        undefined,
+        query,
+      );
+      const items = result.data.items ?? result.data ?? [];
+      allItems.push(...items);
+      hasMore = result.data.hasMore ?? items.length === limit;
+      page++;
+    }
+    if (page > MAX_PAGES) {
+      allItems.push({
+        _warning: `Return All truncated at ${MAX_PAGES * limit} records. Use status filter to narrow the dataset.`,
+      });
+    }
+    return allItems;
+  }
+
+  // ── Get Session ──
+  if (operation === 'getSession') {
+    const id = this.getNodeParameter('smartFormId', i) as string;
+    validateUuid(this, id, 'Smart Form ID');
+    const sessionId = this.getNodeParameter('sessionId', i) as string;
+    validateUuid(this, sessionId, 'Session ID');
+    const result = await formfexApiRequest.call(
+      this,
+      'GET',
+      `/smart-forms/${safePath(id)}/sessions/${safePath(sessionId)}`,
+    );
+    return result.data;
+  }
+
+  // ── Aggregate Analytics ──
+  if (operation === 'aggregateAnalytics') {
+    const id = this.getNodeParameter('smartFormId', i) as string;
+    validateUuid(this, id, 'Smart Form ID');
+    const sessionIdsParam = this.getNodeParameter('sessionIds', i, '') as string;
+
+    const body: Record<string, any> = {};
+    if (sessionIdsParam) {
+      const ids = sessionIdsParam.split(',').map((s) => s.trim()).filter(Boolean);
+      if (ids.length > 0) body.sessionIds = ids;
+    }
+
+    const result = await formfexApiRequest.call(
+      this,
+      'POST',
+      `/smart-forms/${safePath(id)}/aggregate-analytics`,
+      body,
+    );
+    return result.data;
+  }
+
+  // ── Chat ──
+  if (operation === 'chat') {
+    const id = this.getNodeParameter('smartFormId', i) as string;
+    validateUuid(this, id, 'Smart Form ID');
+    const rawMessage = this.getNodeParameter('message', i) as string;
+    const message = rawMessage.length > 500 ? rawMessage.substring(0, 500) : rawMessage;
+    const conversationHistoryRaw = this.getNodeParameter('conversationHistory', i, '[]') as string;
+
+    const body: Record<string, any> = { message };
+
+    // Parse conversation history
+    try {
+      const parsed = typeof conversationHistoryRaw === 'string'
+        ? JSON.parse(conversationHistoryRaw)
+        : conversationHistoryRaw;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Keep only last 10 messages
+        body.conversationHistory = parsed.slice(-10);
+      }
+    } catch {
+      // Invalid JSON — skip conversation history
+    }
+
+    const result = await formfexApiRequest.call(
+      this,
+      'POST',
+      `/smart-forms/${safePath(id)}/chat`,
+      body,
+    );
+    return result.data;
+  }
+
+  // ── Export ──
+  if (operation === 'export') {
+    const id = this.getNodeParameter('smartFormId', i) as string;
+    validateUuid(this, id, 'Smart Form ID');
+    const format = this.getNodeParameter('exportFormat', i, 'csv') as string;
+
+    const result = await formfexApiRequest.call(
+      this,
+      'GET',
+      `/smart-forms/${safePath(id)}/export`,
+      undefined,
+      { format },
+    );
+    return result.data ?? result;
+  }
+
+  throw new NodeApiError(this.getNode(), {
+    message: `Unknown smart form operation: ${operation}`,
+  });
 }
 
 function sleep(ms: number): Promise<void> {

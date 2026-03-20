@@ -43,6 +43,7 @@ export const webhookFields: INodeProperties[] = [
       { name: 'Form Response Created', value: 'FORM_RESPONSE_CREATED' },
       { name: 'Form Responses Limit Reached', value: 'FORM_RESPONSES_LIMIT_REACHED' },
       { name: 'Analytics Report Completed', value: 'ANALYTICS_REPORT_COMPLETED' },
+      { name: 'Smart Form Session Completed', value: 'SMART_FORM_SESSION_COMPLETED' },
       { name: 'Subscription Changed', value: 'SUBSCRIPTION_CHANGED' },
       { name: 'Subscription Payment Failed', value: 'SUBSCRIPTION_PAYMENT_FAILED' },
     ],
