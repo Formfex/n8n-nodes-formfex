@@ -421,6 +421,22 @@ async function executeSmartFormOperation(
     if (additionalFields.maxQuestions) body.maxQuestions = additionalFields.maxQuestions;
     if (additionalFields.isPrivate !== undefined) body.isPrivate = additionalFields.isPrivate;
 
+    if (additionalFields.targetSchema) {
+      try {
+        body.targetSchema = typeof additionalFields.targetSchema === 'string'
+          ? JSON.parse(additionalFields.targetSchema as string)
+          : additionalFields.targetSchema;
+      } catch { /* ignore invalid JSON — let API validate */ }
+    }
+
+    if (additionalFields.referenceJson) {
+      try {
+        body.referenceJson = typeof additionalFields.referenceJson === 'string'
+          ? JSON.parse(additionalFields.referenceJson as string)
+          : additionalFields.referenceJson;
+      } catch { /* ignore invalid JSON — let API validate */ }
+    }
+
     const result = await formfexApiRequest.call(this, 'POST', '/smart-forms', body);
     return result.data;
   }
@@ -473,11 +489,30 @@ async function executeSmartFormOperation(
     const id = this.getNodeParameter('smartFormId', i) as string;
     validateUuid(this, id, 'Smart Form ID');
     const updateFields = this.getNodeParameter('updateFields', i, {}) as Record<string, any>;
+
+    const body: Record<string, any> = { ...updateFields };
+
+    if (updateFields.targetSchema) {
+      try {
+        body.targetSchema = typeof updateFields.targetSchema === 'string'
+          ? JSON.parse(updateFields.targetSchema as string)
+          : updateFields.targetSchema;
+      } catch { /* ignore invalid JSON — let API validate */ }
+    }
+
+    if (updateFields.referenceJson) {
+      try {
+        body.referenceJson = typeof updateFields.referenceJson === 'string'
+          ? JSON.parse(updateFields.referenceJson as string)
+          : updateFields.referenceJson;
+      } catch { /* ignore invalid JSON — let API validate */ }
+    }
+
     const result = await formfexApiRequest.call(
       this,
       'PATCH',
       `/smart-forms/${safePath(id)}`,
-      updateFields,
+      body,
     );
     return result.data;
   }
