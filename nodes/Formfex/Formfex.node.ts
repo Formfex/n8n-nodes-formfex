@@ -289,15 +289,27 @@ async function executeAiOperation(
     const title = this.getNodeParameter('title', i) as string;
     const prompt = this.getNodeParameter('prompt', i) as string;
     const language = this.getNodeParameter('language', i, 'en') as string;
+    const targetSchema = this.getNodeParameter('targetSchema', i, '') as string;
+    const referenceJson = this.getNodeParameter('referenceJson', i, '') as string;
 
     // Step 1: Dispatch AI job
-    const dispatchResult = await formfexApiRequest.call(this, 'POST', '/ai/generate-form', { prompt, language });
+    const body: Record<string, unknown> = { prompt, language };
+
+    if (targetSchema) {
+      try { body.targetSchema = JSON.parse(targetSchema); } catch { /* let API validate */ }
+    }
+    if (referenceJson) {
+      try { body.referenceJson = JSON.parse(referenceJson); } catch { /* let API validate */ }
+    }
+
+    const dispatchResult = await formfexApiRequest.call(this, 'POST', '/ai/generate-form', body);
     const jobId = dispatchResult.data.jobId;
 
     // Step 2: Poll until done (max 20 attempts, 3s interval = 60s max)
     const MAX_POLL_ATTEMPTS = 20;
     const POLL_INTERVAL_MS = 3000;
     let schema: any = null;
+    let completedJob: any = null;
 
     for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
       await sleep(POLL_INTERVAL_MS);
@@ -306,6 +318,7 @@ async function executeAiOperation(
 
       if (job.status === 'DONE') {
         schema = job.output?.form ?? job.output;
+        completedJob = job;
         break;
       }
       if (job.status === 'FAILED') {
@@ -332,10 +345,19 @@ async function executeAiOperation(
       parsedSchema.meta.language = language;
     }
 
-    const createResult = await formfexApiRequest.call(this, 'POST', '/forms', {
-      title,
-      schema: parsedSchema,
-    });
+    const createBody: Record<string, unknown> = { title, schema: parsedSchema };
+
+    if (completedJob?.output?.fieldMapping) {
+      createBody.fieldMapping = completedJob.output.fieldMapping;
+    }
+    if (completedJob?.output?.targetSchema) {
+      createBody.targetSchema = completedJob.output.targetSchema;
+    }
+    if (completedJob?.output?.schemaInputType) {
+      createBody.schemaInputType = completedJob.output.schemaInputType;
+    }
+
+    const createResult = await formfexApiRequest.call(this, 'POST', '/forms', createBody);
     return createResult.data;
   }
 

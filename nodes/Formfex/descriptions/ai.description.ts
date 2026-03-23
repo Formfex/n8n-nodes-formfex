@@ -56,6 +56,26 @@ export const aiFields: INodeProperties[] = [
     description: 'Language for the generated form',
     displayOptions: { show: { resource: ['ai'], operation: ['generateForm'] } },
   },
+  {
+    displayName: 'Target Schema',
+    name: 'targetSchema',
+    type: 'json',
+    default: '',
+    description: 'JSON Schema defining the desired output format. AI will generate fields tailored to this schema and produce a field mapping.',
+    displayOptions: {
+      show: { resource: ['ai'], operation: ['generateForm'] },
+    },
+  },
+  {
+    displayName: 'Reference JSON',
+    name: 'referenceJson',
+    type: 'json',
+    default: '',
+    description: 'Example JSON object showing the desired output. Types and keys will be inferred automatically.',
+    displayOptions: {
+      show: { resource: ['ai'], operation: ['generateForm'] },
+    },
+  },
 
   // ── Get Job Status ──
   {
