@@ -1,0 +1,810 @@
+{
+  "name": "HR Onboarding 30-Day — AI Agent Orchestrator",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# HR Onboarding 30-Day — AI Agent\n\nThis workflow uses **autonomous AI Agents** instead of hardcoded pipelines.\n\n**Phase 1:** An AI Agent receives employee data at their 30-day milestone and autonomously crafts a personalized onboarding survey based on department, role, work mode, seniority, tools, and training status. After publishing, the agent **registers the form for real-time monitoring** via webhook.\n\n**Phase 2:** A Formfex Webhook Trigger fires instantly when a response is submitted to any registered form. An AI Agent then evaluates satisfaction, flags at-risk employees, and generates executive reports at milestones.\n\nNo manual form ID configuration needed — the agents manage everything autonomously.",
+        "width": 900,
+        "height": 300
+      },
+      "id": "ai-1700-0000-0000-000000000000",
+      "name": "Sticky Note — Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Phase 1 — AI Agent: Create Onboarding Survey\n\n1. Agent writes a prompt → Formfex AI generates form\n2. Agent reviews the form, updates if needed\n3. Agent publishes the form\n4. **Agent registers the form ID for webhook monitoring**\n5. Email sent with publish link",
+        "width": 700,
+        "height": 180,
+        "color": 4
+      },
+      "id": "ai-1700-0000-0000-000000000001",
+      "name": "Sticky Note — Phase 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Phase 2 — Webhook Trigger + AI Agent: Evaluate & Report\n\nReal-time webhook fires when a response is submitted to any registered form.\nThe agent analyzes each response and autonomously:\n- Evaluates satisfaction and detects at-risk employees\n- Flags missing tools and urgent issues\n- Generates VP-level reports at milestones",
+        "width": 520,
+        "height": 180,
+        "color": 6
+      },
+      "id": "ai-1700-0000-0000-000000000002",
+      "name": "Sticky Note — Phase 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "id": "ai-1701-0001-4000-8000-000000000001",
+      "name": "Daily Morning Check",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -60,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// MOCK DATA — Simulates GET /api/employees?startDate=30days&status=active\nreturn [\n  {\n    json: {\n      name: 'Cihan Tamyıldırım',\n      email: 'ctamyildirim@gmail.com',\n      department: 'Engineering',\n      role: 'Frontend Developer',\n      seniority: 'junior',\n      managerName: 'Can Yılmaz',\n      teamSize: 8,\n      workMode: 'remote',\n      officeLocation: null,\n      toolsProvisioned: ['GitHub', 'Jira', 'Slack', 'Figma', 'VS Code', 'Vercel'],\n      buddyName: 'Mehmet Kaya',\n      completedTrainings: ['Company Culture 101', 'Security Basics', 'Git Workflow'],\n      pendingTrainings: ['CI/CD Pipeline', 'Code Review Standards'],\n      preferredLanguage: 'tr'\n    }\n  }\n];"
+      },
+      "id": "ai-1701-0001-4000-8000-000000000002",
+      "name": "Get 30-Day Employees",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "ai-1701-0001-4000-8000-000000000003",
+      "name": "Any Employees?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "agentInput",
+              "value": "=A new employee has reached their 30-day milestone. Here is their data:\n\nName: {{ $json.name }}\nEmail: {{ $json.email }}\nDepartment: {{ $json.department }}\nRole: {{ $json.role }}\nSeniority: {{ $json.seniority }}\nManager: {{ $json.managerName }}\nTeam Size: {{ $json.teamSize }}\nWork Mode: {{ $json.workMode }}\nOffice Location: {{ $json.officeLocation || 'N/A' }}\nTools Provisioned: {{ $json.toolsProvisioned.join(', ') }}\nOnboarding Buddy: {{ $json.buddyName || 'none' }}\nCompleted Trainings: {{ $json.completedTrainings.join(', ') }}\nPending Trainings: {{ $json.pendingTrainings.join(', ') }}\nPreferred Language: {{ $json.preferredLanguage || 'en' }}\n\nFollow the steps in your system prompt to generate, review, and publish this form. Return a JSON with formId and url as your last message.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ai-1701-0001-4000-8000-000000000004",
+      "name": "Set: Prepare Employee Context",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are an autonomous HR onboarding experience manager. You create personalized 30-day check-in surveys that employees fill out ABOUT THEIR OWN onboarding experience.\n\nIMPORTANT: The form is for the EMPLOYEE to evaluate their onboarding experience — NOT for anyone to evaluate the employee. Questions should ask things like: How satisfied are you with your onboarding? Did you receive the tools you need? How is your relationship with your buddy/manager? What could we improve?\n\nYou have these tools available:\n- **Formfex AI: Generate Form**: Give it a prompt, title, and language. It generates a form using AI AND creates it in the system. Returns the created form object with id, title, and schema.\n- **Formfex Form: Get**: Get a form by ID to review it.\n- **Formfex Form: Update**: Update a form's title if needed.\n- **Formfex Form: Publish**: Publish a form to get a shareUrl.\n\n\nWhen you receive employee data, follow these steps IN ORDER:\n\n**Step 1 — Generate and Create Form:**\nUse 'Formfex AI: Generate Form'. Provide:\n- formTitle: '30-Day Check-in: [employeeName]'\n- prompt: Describe a self-assessment survey where this employee evaluates their own first 30 days. Personalize based on their work mode, department, tools, buddy, pending trainings. The employee answers about THEIR onboarding experience.\n- formLanguage: the employee's preferred language code\nThis tool generates the form with AI and creates it. The response contains the form's id.\n\n**Step 2 — Review the Form:**\nUse 'Formfex Form: Get' with the form id from Step 1. Verify questions are from the EMPLOYEE's perspective (not evaluating the employee).\n\n**Step 3 — Update if Needed:**\nIf anything needs fixing, use 'Formfex Form: Update'.\n\n**Step 4 — Publish:**\nUse 'Formfex Form: Publish' with the form id. This returns the shareUrl.\n\n**Step 5 — Return Result:**\nReturn a JSON object with the formId and the full URL:\n{\"formId\": \"<the form UUID>\", \"url\": \"https://formfex.com/forms/response/<shareUrl>\"}\n\nIMPORTANT: Follow steps in order. Do NOT skip steps. You MUST return valid JSON with formId included — it is needed for automatic response monitoring."
+        },
+        "promptType": "define",
+        "text": "={{ $json.agentInput }}"
+      },
+      "id": "ai-1701-0001-4000-8000-000000000005",
+      "name": "AI Agent: Onboarding Survey",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "ai",
+        "operation": "generateForm",
+        "title": "={{ $fromAI('formTitle', 'Title for the form, e.g. 30-Day Check-in: Employee Name', 'string') }}",
+        "prompt": "={{ $fromAI('prompt', 'A concise description of the form to generate, max 400 chars', 'string') }}",
+        "language": "={{ $fromAI('formLanguage', 'Language code: en, tr, es, it, de, nl', 'string') }}"
+      },
+      "id": "ai-1701-tool-generate",
+      "name": "Formfex AI: Generate Form",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        820,
+        540
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      },
+      "usableAsTool": true
+    },
+    {
+      "parameters": {
+        "resource": "form",
+        "operation": "get",
+        "formId": "={{ $fromAI('formId', 'The UUID of the form to retrieve', 'string') }}"
+      },
+      "id": "ai-1701-tool-getform",
+      "name": "Formfex Form: Get",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        540
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      },
+      "usableAsTool": true
+    },
+    {
+      "parameters": {
+        "resource": "form",
+        "operation": "update",
+        "formId": "={{ $fromAI('formId', 'The UUID of the form to update', 'string') }}",
+        "updateFields": {
+          "title": "={{ $fromAI('title', 'The new title for the form', 'string') }}"
+        }
+      },
+      "id": "ai-1701-tool-updateform",
+      "name": "Formfex Form: Update",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        1240,
+        540
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      },
+      "usableAsTool": true
+    },
+    {
+      "parameters": {
+        "resource": "form",
+        "operation": "publish",
+        "formId": "={{ $fromAI('formId', 'The UUID of the form to publish', 'string') }}",
+        "publishFields": {
+          "visibility": "PUBLIC"
+        }
+      },
+      "id": "ai-1701-tool-publish",
+      "name": "Formfex Form: Publish",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        1380,
+        540
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      },
+      "usableAsTool": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract formId and URL from the AI Agent's output.\nconst output = $input.first().json.output || $input.first().json.text || '';\nlet formId = null;\nlet formUrl = null;\nlet shareUrl = null;\n\n// Try to parse JSON from agent output\ntry {\n  const jsonMatch = output.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    const parsed = JSON.parse(jsonMatch[0]);\n    formId = parsed.formId || parsed.smartFormId;\n    formUrl = parsed.formUrl || parsed.url;\n    shareUrl = parsed.shareUrl;\n  }\n} catch(e) {}\n\n// Fix formUrl: ensure correct path\nif (formUrl) {\n  if (!formUrl.startsWith('http')) {\n    formUrl = 'https://formfex.com/forms/response/' + formUrl;\n  } else if (!formUrl.includes('/forms/response/')) {\n    const slug = formUrl.split('/').pop();\n    formUrl = 'https://formfex.com/forms/response/' + slug;\n  }\n}\n\n// Fallback: extract UUID\nif (!formId) {\n  const uuidMatch = output.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);\n  if (uuidMatch) formId = uuidMatch[0];\n}\n\n// Fallback: extract URL\nif (!formUrl) {\n  const urlMatch = output.match(/https:\\/\\/formfex\\.com\\/forms\\/response\\/[\\w-]+/);\n  if (urlMatch) formUrl = urlMatch[0];\n}\n\n// Construct URL from shareUrl or formId\nif (!formUrl && shareUrl) {\n  formUrl = 'https://formfex.com/forms/response/' + shareUrl;\n}\nif (!formUrl && formId) {\n  formUrl = 'https://formfex.com/forms/response/' + formId;\n}\n\n// Register for webhook monitoring\nif (formId) {\n  const staticData = $getWorkflowStaticData('global');\n  const watchedFormIds = staticData.watchedFormIds ?? [];\n  if (!watchedFormIds.includes(formId)) {\n    watchedFormIds.push(formId);\n    staticData.watchedFormIds = watchedFormIds;\n  }\n}\n\nreturn [{ json: { formId, formUrl, output } }];"
+      },
+      "id": "ai-1701-tool-register",
+      "name": "Register Form for Monitoring",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {}
+      },
+      "id": "ai-1701-0001-4000-8000-000000000007",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        700,
+        540
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_GOOGLE_GEMINI_CREDENTIAL_ID",
+          "name": "Google Gemini"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "hr@formfex.com",
+        "toEmail": "={{ $('Get 30-Day Employees').item.json.email }}",
+        "subject": "=Your first month — how's it going, {{ $('Get 30-Day Employees').item.json.name.split(' ')[0] }}?",
+        "emailType": "html",
+        "html": "=<div style=\"font-family:sans-serif;max-width:600px;margin:0 auto;\">\n<h2>Hi {{ $('Get 30-Day Employees').item.json.name.split(' ')[0] }},</h2>\n<p>Congratulations on your first month with us on the <strong>{{ $('Get 30-Day Employees').item.json.department }}</strong> team!</p>\n<p>We'd love to hear how your onboarding experience has been. Your feedback is completely confidential and helps us improve the experience for future team members.</p>\n<p style=\"text-align:center;margin:24px 0;\">\n<a href=\"{{ $json.formUrl }}\" style=\"background:#8b5cf6;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:16px;\">Share Your Experience</a>\n</p>\n<p>It takes about 3 minutes. Thank you for helping us get better!</p>\n<p>Best,<br/>The People Team</p>\n</div>"
+      },
+      "id": "ai-1701-0001-4000-8000-000000000008",
+      "name": "Email Employee",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1460,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "YOUR_SMTP_CREDENTIAL_ID",
+          "name": "SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "event": "FORM_RESPONSE_CREATED"
+      },
+      "id": "ai-1702-0001-4000-8000-000000000001",
+      "name": "New Onboarding Response",
+      "type": "n8n-nodes-formfex.formfexWebhookTrigger",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        960
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "agentInput",
+              "value": "=A new 30-day onboarding check-in response was received.\n\nForm ID: {{ $json.formId }}\nResponse data: {{ JSON.stringify($json) }}\n\nYour mission:\n1. Analyze this response using Formfex AI Analytics Chat to evaluate employee satisfaction\n2. Determine: overall satisfaction (1-5), sentiment, whether tools are missing, key positive, key improvement area, and whether this needs manager attention (satisfaction <= 2 or critical tools missing)\n3. Check total response count for form {{ $json.formId }}\n4. If count is a multiple of 20: generate a comprehensive onboarding health report for the VP of People (department breakdown, trends, common issues)\n5. Return your findings as JSON with fields: overallSatisfaction, sentiment, missingTools (boolean), missingToolsList, keyPositive, keyImprovement, flagForManager (boolean), totalCount, isMilestone (boolean), milestoneReport (string or null)",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ai-1702-0001-4000-8000-000000000002",
+      "name": "Set: Prepare Response Context",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are an autonomous HR onboarding health analyst. You monitor every 30-day check-in response and take appropriate actions.\n\nIMPORTANT — sessionId usage for analyticsChat:\n- On your FIRST call to analyticsChat, pass an empty string for sessionId.\n- The response will include a sessionId. Use that sessionId on ALL subsequent analyticsChat calls to maintain conversation context.\n\nFor EVERY new response:\n1. Use Formfex analyticsChat to analyze the latest response (sessionId: empty string for first call). Evaluate: overall satisfaction (1-5), sentiment (positive/neutral/negative), whether critical tools are missing, the best part mentioned, and the main improvement suggestion.\n\n2. Determine if this needs URGENT manager attention: true if satisfaction <= 2 OR if critical tools/access are missing.\n\n3. Use Formfex response count to get the total count.\n\n4. If the count is a multiple of 20, run a comprehensive onboarding health report via analyticsChat (reuse the sessionId from step 1): average satisfaction, department-by-department breakdown, most common missing tools, top 3 things new hires love, top 3 improvement areas, trend direction.\n\n5. Output clean JSON with: overallSatisfaction (number), sentiment (string), missingTools (boolean), missingToolsList (string), keyPositive (string), keyImprovement (string), flagForManager (boolean), totalCount (number), isMilestone (boolean), milestoneReport (string or null).\n\nBe precise with your analysis. Every response could reveal an at-risk employee who needs immediate support."
+        },
+        "promptType": "define",
+        "text": "={{ $json.agentInput }}"
+      },
+      "id": "ai-1702-0001-4000-8000-000000000003",
+      "name": "AI Agent: Evaluate & Report",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        500,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "ai",
+        "operation": "analyticsChat",
+        "formId": "={{ $fromAI('formId', 'The UUID of the form to analyze', 'string') }}",
+        "message": "={{ $fromAI('message', 'The analytics question to ask about the form data', 'string') }}",
+        "sessionId": ""
+      },
+      "id": "ai-1702-0001-4000-8000-000000000004",
+      "name": "Formfex Tool: Analyze",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        500,
+        1160
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      },
+      "usableAsTool": true
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {}
+      },
+      "id": "ai-1702-0001-4000-8000-000000000005",
+      "name": "Google Gemini Chat Model 2",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        300,
+        1160
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_GOOGLE_GEMINI_CREDENTIAL_ID",
+          "name": "Google Gemini"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.output || $input.first().json.text || '';\ntry {\n  const jsonMatch = output.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) return [{ json: JSON.parse(jsonMatch[0]) }];\n} catch(e) {}\nreturn [{ json: { overallSatisfaction: 0, sentiment: 'unknown', flagForManager: true, missingTools: false, missingToolsList: '', keyPositive: '', keyImprovement: output, totalCount: 0, isMilestone: false, milestoneReport: null } }];"
+      },
+      "id": "ai-1702-0001-4000-8000-000000000006",
+      "name": "Parse Agent Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.flagForManager }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "ai-1702-0001-4000-8000-000000000007",
+      "name": "Needs Manager Attention?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "YOUR_SLACK_CHANNEL_ID",
+          "mode": "id"
+        },
+        "text": "=:rotating_light: *Onboarding Alert — Needs Attention*\n\n*Satisfaction:* {{ $json.overallSatisfaction }}/5\n*Sentiment:* {{ $json.sentiment }}\n{{ $json.missingTools ? ':wrench: *Missing tools:* ' + $json.missingToolsList : '' }}\n*Key issue:* {{ $json.keyImprovement }}\n\n:point_right: Manager follow-up recommended within 24 hours.\n\n_Formfex AI Agent — automatic onboarding health check_",
+        "otherOptions": {}
+      },
+      "id": "ai-1702-0001-4000-8000-000000000008",
+      "name": "Slack: HR Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        860
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "YOUR_SLACK_CHANNEL_ID",
+          "mode": "id"
+        },
+        "text": "=:white_check_mark: *New onboarding feedback received*\n\n*Satisfaction:* {{ $json.overallSatisfaction }}/5 | *Sentiment:* {{ $json.sentiment }}\n*Best part:* {{ $json.keyPositive }}\n*Could improve:* {{ $json.keyImprovement }}\n\n_Response logged by Formfex AI Agent_",
+        "otherOptions": {}
+      },
+      "id": "ai-1702-0001-4000-8000-000000000009",
+      "name": "Slack: HR Log",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        1080
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.isMilestone }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "ai-1702-0001-4000-8000-000000000010",
+      "name": "Route: Milestone?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1580,
+        1080
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "hr-analytics@formfex.com",
+        "toEmail": "vp-people@your-company.com",
+        "subject": "=Onboarding Health Report — {{ $json.totalCount }} responses milestone",
+        "emailType": "html",
+        "html": "=<div style=\"font-family:sans-serif;max-width:700px;margin:0 auto;\">\n<h2 style=\"color:#8b5cf6;\">Onboarding Health Report</h2>\n<p><strong>Milestone:</strong> {{ $json.totalCount }} total onboarding responses</p>\n<div style=\"background:#f9fafb;padding:16px;border-radius:8px;margin:16px 0;\">\n{{ $json.milestoneReport ? $json.milestoneReport.replace(/\\n/g, '<br/>') : 'No report data available.' }}\n</div>\n<hr/>\n<p style=\"color:#6b7280;font-size:12px;\">Auto-generated by Formfex AI Agent — Onboarding Health Analyst</p>\n</div>"
+      },
+      "id": "ai-1702-0001-4000-8000-000000000011",
+      "name": "Email VP People",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1840,
+        1000
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "YOUR_SMTP_CREDENTIAL_ID",
+          "name": "SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily Morning Check": {
+      "main": [
+        [
+          {
+            "node": "Get 30-Day Employees",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get 30-Day Employees": {
+      "main": [
+        [
+          {
+            "node": "Any Employees?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Employees?": {
+      "main": [
+        [
+          {
+            "node": "Set: Prepare Employee Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Set: Prepare Employee Context": {
+      "main": [
+        [
+          {
+            "node": "AI Agent: Onboarding Survey",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent: Onboarding Survey": {
+      "main": [
+        [
+          {
+            "node": "Register Form for Monitoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Register Form for Monitoring": {
+      "main": [
+        [
+          {
+            "node": "Email Employee",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formfex AI: Generate Form": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent: Onboarding Survey",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formfex Form: Get": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent: Onboarding Survey",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formfex Form: Update": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent: Onboarding Survey",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formfex Form: Publish": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent: Onboarding Survey",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent: Onboarding Survey",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Onboarding Response": {
+      "main": [
+        [
+          {
+            "node": "Set: Prepare Response Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: Prepare Response Context": {
+      "main": [
+        [
+          {
+            "node": "AI Agent: Evaluate & Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent: Evaluate & Report": {
+      "main": [
+        [
+          {
+            "node": "Parse Agent Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formfex Tool: Analyze": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent: Evaluate & Report",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model 2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent: Evaluate & Report",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Agent Output": {
+      "main": [
+        [
+          {
+            "node": "Needs Manager Attention?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Manager Attention?": {
+      "main": [
+        [
+          {
+            "node": "Slack: HR Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack: HR Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: HR Log": {
+      "main": [
+        [
+          {
+            "node": "Route: Milestone?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route: Milestone?": {
+      "main": [
+        [
+          {
+            "node": "Email VP People",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "formfex-demo"
+    },
+    {
+      "name": "hr"
+    },
+    {
+      "name": "ai-agent"
+    },
+    {
+      "name": "webhook"
+    }
+  ],
+  "id": "17"
+}

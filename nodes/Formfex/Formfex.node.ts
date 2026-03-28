@@ -443,22 +443,27 @@ async function executeSmartFormOperation(
     if (additionalFields.maxQuestions) body.maxQuestions = additionalFields.maxQuestions;
     if (additionalFields.isPrivate !== undefined) body.isPrivate = additionalFields.isPrivate;
 
-    if (additionalFields.targetSchema) {
+    // Top-level fields (moved out of additionalFields for reliable expression support)
+    let targetSchemaRaw: any;
+    let referenceJsonRaw: any;
+    try { targetSchemaRaw = this.getNodeParameter('targetSchema', i, ''); } catch { targetSchemaRaw = ''; }
+    try { referenceJsonRaw = this.getNodeParameter('referenceJson', i, ''); } catch { referenceJsonRaw = ''; }
+
+    if (targetSchemaRaw) {
       try {
-        body.targetSchema = typeof additionalFields.targetSchema === 'string'
-          ? JSON.parse(additionalFields.targetSchema as string)
-          : additionalFields.targetSchema;
-      } catch { /* ignore invalid JSON — let API validate */ }
+        body.targetSchema = typeof targetSchemaRaw === 'string'
+          ? JSON.parse(targetSchemaRaw)
+          : targetSchemaRaw;
+      } catch { /* let API validate */ }
     }
 
-    if (additionalFields.referenceJson) {
+    if (referenceJsonRaw) {
       try {
-        body.referenceJson = typeof additionalFields.referenceJson === 'string'
-          ? JSON.parse(additionalFields.referenceJson as string)
-          : additionalFields.referenceJson;
-      } catch { /* ignore invalid JSON — let API validate */ }
+        body.referenceJson = typeof referenceJsonRaw === 'string'
+          ? JSON.parse(referenceJsonRaw)
+          : referenceJsonRaw;
+      } catch { /* let API validate */ }
     }
-
     const result = await formfexApiRequest.call(this, 'POST', '/smart-forms', body);
     return result.data;
   }

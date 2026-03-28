@@ -1,0 +1,576 @@
+{
+  "name": "SaaS Churn Prevention — Full Orchestrator (Create + Monitor)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# SaaS Churn Prevention — Full Orchestrator\n\nTwo phases in one workflow:\n\n**Phase 1 — Upper Section (Create & Distribute)**\nDaily schedule checks for inactive users → AI generates a personalized churn prevention survey based on each user's plan, features used, account age, and support history → Form created & published → Form registered for monitoring → Email sent to each inactive user → Result logged\n\n**Phase 2 — Lower Section (Monitor & Analyze)**\nFormfex Webhook Trigger fires on each new feedback response (no manual form ID needed — the webhook receives the formId automatically) → Response count checked → At 25+ responses: full AI churn analysis sent to #product-feedback → Otherwise: quick AI summary sent to #customer-success\n\n**Connection:** Phase 1 creates the form and registers it for webhook monitoring, Phase 2 reacts to incoming responses automatically via webhook",
+        "width": 900,
+        "height": 280
+      },
+      "id": "orch-1200-0000-0000-000000000000",
+      "name": "Sticky Note — Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Phase 1 — Create & Distribute\n\nTriggered daily on a schedule.\nFetches inactive users, then AI builds a personalized churn prevention survey for each user based on their plan, features, account age, and support history.\nForm is published, registered for webhook monitoring, and emailed to each inactive user.",
+        "width": 440,
+        "height": 160,
+        "color": 4
+      },
+      "id": "orch-1200-0000-0000-000000000001",
+      "name": "Sticky Note — Phase 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Phase 2 — Monitor & Analyze\n\nFormfex Webhook Trigger fires on every new response — no manual form ID configuration needed.\n\n**Track A (25+ responses):** Full AI churn analysis → Slack #product-feedback\n**Track B (every response):** Quick AI summary → Slack #customer-success",
+        "width": 520,
+        "height": 160,
+        "color": 6
+      },
+      "id": "orch-1200-0000-0000-000000000002",
+      "name": "Sticky Note — Phase 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Track A — 25+ Milestone Analysis\nFull AI churn report → Slack #product-feedback",
+        "width": 380,
+        "height": 80,
+        "color": 2
+      },
+      "id": "orch-1200-0000-0000-000000000003",
+      "name": "Sticky Note — Track A",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        700,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Track B — Every Response Quick Summary\nQuick AI summary → Slack #customer-success",
+        "width": 380,
+        "height": 80,
+        "color": 3
+      },
+      "id": "orch-1200-0000-0000-000000000004",
+      "name": "Sticky Note — Track B",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        700,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "id": "orch-1201-0001-4000-8000-000000000001",
+      "name": "Daily Check",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -60,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// MOCK DATA — Simulates GET /api/users/inactive?days=7&limit=50\nreturn [\n  {\n    json: {\n      name: 'Sarah Chen',\n      email: 'sarah.chen@example.com',\n      plan: 'pro',\n      planPrice: 29,\n      daysInactive: 9,\n      topFeatures: ['ai-forms', 'analytics', 'integrations'],\n      lastFeature: 'ai-forms',\n      totalForms: 47,\n      accountAgeDays: 210,\n      lastTicketSubject: 'AI form generation timeout on large prompts',\n      preferredLanguage: 'en'\n    }\n  },\n  {\n    json: {\n      name: 'Marco Rossi',\n      email: 'marco.rossi@example.com',\n      plan: 'free',\n      planPrice: 0,\n      daysInactive: 12,\n      topFeatures: ['templates', 'analytics'],\n      lastFeature: 'templates',\n      totalForms: 5,\n      accountAgeDays: 22,\n      lastTicketSubject: null,\n      preferredLanguage: 'it'\n    }\n  },\n  {\n    json: {\n      name: 'Emily Watson',\n      email: 'emily.w@example.com',\n      plan: 'business',\n      planPrice: 79,\n      daysInactive: 8,\n      topFeatures: ['integrations', 'ai-forms', 'templates'],\n      lastFeature: 'integrations',\n      totalForms: 132,\n      accountAgeDays: 365,\n      lastTicketSubject: 'Slack integration disconnects after 24h',\n      preferredLanguage: 'en'\n    }\n  }\n];"
+      },
+      "id": "orch-1201-0001-4000-8000-000000000002",
+      "name": "Get Inactive Users",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "ai",
+        "operation": "generateForm",
+        "prompt": "=Create a personalized churn prevention survey. CRITICAL: The questions MUST adapt based on this user's specific context — a generic survey is useless.\n\nUser context:\n- Name: {{ $json.name }}\n- Plan: {{ $json.plan }} ({{ $json.planPrice }}/mo)\n- Days inactive: {{ $json.daysInactive }}\n- Top 3 features used: {{ $json.topFeatures.join(', ') }}\n- Feature they used most before leaving: {{ $json.lastFeature }}\n- Total forms created: {{ $json.totalForms }}\n- Account age: {{ $json.accountAgeDays }} days\n- Last support ticket: {{ $json.lastTicketSubject || 'none' }}\n\nDYNAMIC RULES — the form MUST change based on the data above:\n1. Start with: \"We noticed you haven't used [lastFeature] lately\" — reference their SPECIFIC last feature, not a generic greeting\n2. If plan is 'pro' or 'business': ask if they're getting enough value for ${{ $json.planPrice }}/mo and whether they'd prefer a different tier\n3. If plan is 'free': skip pricing questions, ask what premium feature would make them upgrade\n4. For EACH of their top 3 features, include a targeted question:\n   - If feature is 'analytics': \"Was our analytics dashboard giving you the insights you needed?\"\n   - If feature is 'ai-forms': \"Were the AI-generated forms accurate enough for your use case?\"\n   - If feature is 'integrations': \"Did our integrations cover the tools you use?\"\n   - If feature is 'templates': \"Did you find templates relevant to your industry?\"\n   - For any other feature: generate a relevant satisfaction question about that specific feature\n5. If lastTicketSubject exists: add a question about whether their support issue was resolved satisfactorily\n6. If accountAgeDays < 30: focus on onboarding experience (\"Did you find it easy to get started?\")\n7. If accountAgeDays > 180: focus on long-term value (\"What changed that made you stop using us?\")\n8. End with: one open text field for what would bring them back\n\nMax 6 questions. Each user should get a DIFFERENT form based on their data above.",
+        "language": "={{ $json.preferredLanguage || 'en' }}"
+      },
+      "id": "orch-1201-0001-4000-8000-000000000003",
+      "name": "AI: Generate Feedback Form",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "form",
+        "operation": "create",
+        "title": "=We miss you, {{ $('Get Inactive Users').item.json.name }}!",
+        "additionalFields": {
+          "schema": "={{ JSON.stringify($json.result) }}",
+          "description": "Quick feedback survey"
+        }
+      },
+      "id": "orch-1201-0001-4000-8000-000000000004",
+      "name": "Create Form",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        720,
+        300
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "form",
+        "operation": "publish",
+        "formId": "={{ $json.id }}",
+        "publishFields": {
+          "visibility": "public"
+        }
+      },
+      "id": "orch-1201-0001-4000-8000-000000000005",
+      "name": "Publish Form",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        980,
+        300
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Register this form for webhook monitoring\nconst formId = $input.first().json.id;\nconst staticData = $getWorkflowStaticData('global');\nconst watchedFormIds = staticData.watchedFormIds ?? [];\nif (!watchedFormIds.includes(formId)) {\n  watchedFormIds.push(formId);\n  staticData.watchedFormIds = watchedFormIds;\n}\nreturn [$input.first()];"
+      },
+      "id": "orch-1201-0001-4000-8000-000000000008",
+      "name": "Register Form for Monitoring",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1110,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "feedback@your-saas.com",
+        "toEmail": "={{ $('Get Inactive Users').item.json.email }}",
+        "subject": "=We'd love your feedback, {{ $('Get Inactive Users').item.json.name }}",
+        "emailType": "html",
+        "html": "=<h2>Hey {{ $('Get Inactive Users').item.json.name }},</h2>\n<p>We noticed you haven't been around lately, and we'd love to know how we can do better.</p>\n<p>Could you spare 2 minutes to share your thoughts?</p>\n<p><a href=\"https://app.formfex.com/f/{{ $json.shareUrl }}\" style=\"background:#6366f1;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;\">Share Feedback</a></p>\n<p>Your input directly shapes our roadmap. Thank you!</p>"
+      },
+      "id": "orch-1201-0001-4000-8000-000000000006",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1240,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "YOUR_SMTP_CREDENTIAL_ID",
+          "name": "SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "formId",
+              "value": "={{ $('Publish Form').item.json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "userEmail",
+              "value": "={{ $('Get Inactive Users').item.json.email }}",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "status",
+              "value": "sent",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "orch-1201-0001-4000-8000-000000000007",
+      "name": "Log Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "event": "FORM_RESPONSE_CREATED"
+      },
+      "id": "orch-1202-0001-4000-8000-000000000001",
+      "name": "New Feedback Response",
+      "type": "n8n-nodes-formfex.formfexWebhookTrigger",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        960
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "response",
+        "operation": "count",
+        "formId": "={{ $('New Feedback Response').item.json.formId }}"
+      },
+      "id": "orch-1202-0001-4000-8000-000000000002",
+      "name": "Get Response Count",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        200,
+        960
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.count }}",
+              "rightValue": 25,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "orch-1202-0001-4000-8000-000000000003",
+      "name": "25+ Responses?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        460,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "ai",
+        "operation": "analyticsChat",
+        "formId": "={{ $('New Feedback Response').item.json.formId }}",
+        "message": "Analyze all responses and provide:\n1. Top 3 reasons users are churning (with percentages)\n2. Most requested feature that would bring users back\n3. Average NPS score and what it means\n4. One actionable recommendation for the product team\n\nKeep the summary concise and data-driven."
+      },
+      "id": "orch-1202-0001-4000-8000-000000000004",
+      "name": "AI: Analyze Churn Reasons",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        720,
+        860
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#product-feedback",
+        "text": "=:rotating_light: *Churn Prevention Report* ({{ $('Get Response Count').item.json.count }} responses)\n\n{{ $json.answer }}\n\n_Powered by Formfex AI Analytics_",
+        "otherOptions": {}
+      },
+      "id": "orch-1202-0001-4000-8000-000000000005",
+      "name": "Slack: Product Team",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1000,
+        860
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "ai",
+        "operation": "analyticsChat",
+        "formId": "={{ $('New Feedback Response').item.json.formId }}",
+        "message": "For the user who just responded: What was their main reason for leaving and what did they suggest? One paragraph summary.",
+        "sessionId": ""
+      },
+      "id": "orch-1202-0001-4000-8000-000000000006",
+      "name": "AI: Quick Summary",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        720,
+        1080
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#customer-success",
+        "text": "=:speech_balloon: *New churn feedback received*\n\n{{ $json.answer }}\n\n_Response #{{ $('Get Response Count').item.json.count }}_",
+        "otherOptions": {}
+      },
+      "id": "orch-1202-0001-4000-8000-000000000007",
+      "name": "Slack: CS Team",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1000,
+        1080
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily Check": {
+      "main": [
+        [
+          {
+            "node": "Get Inactive Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Inactive Users": {
+      "main": [
+        [
+          {
+            "node": "AI: Generate Feedback Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Generate Feedback Form": {
+      "main": [
+        [
+          {
+            "node": "Create Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Form": {
+      "main": [
+        [
+          {
+            "node": "Publish Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish Form": {
+      "main": [
+        [
+          {
+            "node": "Register Form for Monitoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Register Form for Monitoring": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Log Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Feedback Response": {
+      "main": [
+        [
+          {
+            "node": "Get Response Count",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Response Count": {
+      "main": [
+        [
+          {
+            "node": "25+ Responses?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "25+ Responses?": {
+      "main": [
+        [
+          {
+            "node": "AI: Analyze Churn Reasons",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI: Quick Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Analyze Churn Reasons": {
+      "main": [
+        [
+          {
+            "node": "Slack: Product Team",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Quick Summary": {
+      "main": [
+        [
+          {
+            "node": "Slack: CS Team",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "formfex-demo"
+    },
+    {
+      "name": "churn-prevention"
+    },
+    {
+      "name": "orchestrator"
+    },
+    {
+      "name": "webhook"
+    }
+  ],
+  "id": "12"
+}

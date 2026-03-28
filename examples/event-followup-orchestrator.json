@@ -1,0 +1,692 @@
+{
+  "name": "Event Follow-up — Full Orchestrator (Create + Monitor)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# 🎯 Event Follow-up Orchestrator\n\nTwo phases in one workflow:\n\n**Phase 1 — LEFT SIDE (Create & Distribute)**\nWebhook triggers when event ends → AI generates a custom survey based on speakers, sessions, format → Form created & published → Form registered for monitoring → Emails sent to all attendees → Slack notification\n\n**Phase 2 — RIGHT SIDE (Monitor & Analyze)**\nFormfex Webhook Trigger fires in real-time on each new response → Response count checked → Every response gets a pulse check → At 100 responses: full AI report + next-event recommendations + PDF report\n\n**Connection:** Phase 1 creates the form and registers it for real-time webhook monitoring, Phase 2 reacts instantly to each submission",
+        "width": 900,
+        "height": 280
+      },
+      "id": "orch-0000-0000-0000-000000000000",
+      "name": "Sticky Note — Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Phase 1 — Create & Distribute\n\nTriggered when an event ends.\nAI builds a custom feedback form from the event's speakers, session types, and format.\nForm is published, registered for real-time webhook monitoring, and emailed to every attendee.",
+        "width": 440,
+        "height": 160,
+        "color": 4
+      },
+      "id": "orch-0000-0000-0000-000000000001",
+      "name": "Sticky Note — Phase 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "event-ended",
+        "options": {}
+      },
+      "id": "orch-1001-0001-4000-8000-000000000001",
+      "name": "Event Ended Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -60,
+        300
+      ],
+      "webhookId": "event-ended"
+    },
+    {
+      "parameters": {
+        "resource": "ai",
+        "operation": "generateForm",
+        "prompt": "=Create a post-event feedback form. CRITICAL: The form must be built around THIS specific event's speakers, sessions, and format — not generic event questions.\n\nEvent context:\n- Event: {{ $json.body.eventName }}\n- Type: {{ $json.body.eventType }} (conference/workshop/webinar/meetup/hackathon)\n- Duration: {{ $json.body.duration }}\n- Format: {{ $json.body.format }} (in-person/virtual/hybrid)\n- Venue/Platform: {{ $json.body.venue || 'Online' }}\n- Speakers & sessions:\n{{ $json.body.speakers.map(s => '  - ' + s.name + ' | Topic: \"' + s.topic + '\" | Type: ' + s.sessionType + ' | Duration: ' + s.duration).join('\\n') }}\n- Had networking sessions: {{ $json.body.hasNetworking }}\n- Had workshops/hands-on: {{ $json.body.hasWorkshops }}\n- Catering provided: {{ $json.body.hasCatering }}\n- Event track/theme: {{ $json.body.track || 'general' }}\n\nDYNAMIC RULES — the form MUST change based on event data:\n1. Overall event rating (1-5 stars) — always include\n2. For EACH speaker, generate a TOPIC-SPECIFIC question (not just \"rate this speaker\"):\n   {{ $json.body.speakers.map(s => '   - ' + s.name + ' (\"' + s.topic + '\"): If sessionType is keynote → \"How inspiring was the vision presented?\"; If workshop → \"Were the hands-on exercises useful? Could you apply them at work?\"; If panel → \"Were the diverse viewpoints valuable?\"; If demo → \"Would you try the tool/product demonstrated?\"').join('\\n') }}\n3. For EACH speaker, also ask: \"Content depth\" (too basic / just right / too advanced) — this adapts to the topic\n4. EVENT TYPE specific questions:\n   - Conference: ask about track variety, session scheduling, room transitions\n   - Workshop: ask about hands-on time ratio, materials provided, skill level match\n   - Webinar: ask about audio/video quality, Q&A interactivity, recording availability\n   - Meetup: ask about community feel, venue atmosphere, conversation quality\n   - Hackathon: ask about challenge difficulty, mentor availability, judging fairness\n5. FORMAT specific:\n   - In-person: venue comfort, parking/transit, signage, badge pickup speed\n   - Virtual: platform stability, chat engagement, breakout room experience\n   - Hybrid: \"Did remote attendees feel equally included?\"\n6. If hasNetworking: \"Rate networking opportunities\", \"Did you make meaningful connections?\" (1-5)\n7. If hasWorkshops: \"Were workshop group sizes appropriate?\", \"Rate instructor guidance\"\n8. If hasCatering: \"Rate food & beverage quality\" (only ask if they actually had food!)\n9. Future topics: generate a multi-select list based on the event's track/theme with related topics (not random generic topics)\n10. End with: \"Would you attend next year?\" + open text feedback\n\nAn event with 2 keynotes gets 2 keynote-style questions. A hackathon with 5 mentor-led workshops gets workshop-specific questions for each. A virtual webinar should NEVER ask about parking.",
+        "language": "={{ $json.body.eventLanguage || 'en' }}"
+      },
+      "id": "orch-1001-0001-4000-8000-000000000002",
+      "name": "AI: Generate Event Survey",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        200,
+        300
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "form",
+        "operation": "create",
+        "title": "=How was {{ $('Event Ended Webhook').item.json.body.eventName }}?",
+        "additionalFields": {
+          "schema": "={{ JSON.stringify($json.result) }}"
+        }
+      },
+      "id": "orch-1001-0001-4000-8000-000000000003",
+      "name": "Create Feedback Form",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "form",
+        "operation": "publish",
+        "formId": "={{ $json.id }}",
+        "publishFields": {
+          "visibility": "public"
+        }
+      },
+      "id": "orch-1001-0001-4000-8000-000000000004",
+      "name": "Publish Form",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        720,
+        300
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Register this form for webhook monitoring\nconst formId = $input.first().json.id;\nconst staticData = $getWorkflowStaticData('global');\nconst watchedFormIds = staticData.watchedFormIds ?? [];\nif (!watchedFormIds.includes(formId)) {\n  watchedFormIds.push(formId);\n  staticData.watchedFormIds = watchedFormIds;\n}\nreturn [$input.first()];"
+      },
+      "id": "orch-1001-0001-4000-8000-000000000009",
+      "name": "Register Form for Monitoring",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        850,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "formUrl",
+              "value": "=https://app.formfex.com/f/{{ $json.shareUrl }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "formId",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "attendees",
+              "value": "={{ $('Event Ended Webhook').item.json.body.attendees }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "orch-1001-0001-4000-8000-000000000005",
+      "name": "Prepare Mail Merge",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1110,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "attendees",
+        "options": {}
+      },
+      "id": "orch-1001-0001-4000-8000-000000000006",
+      "name": "Split Attendees",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1370,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "=events@{{ $('Event Ended Webhook').item.json.body.organizerDomain }}",
+        "toEmail": "={{ $json.attendees.email }}",
+        "subject": "=Thank you for attending {{ $('Event Ended Webhook').item.json.body.eventName }}!",
+        "emailType": "html",
+        "html": "=<div style=\"font-family:sans-serif;max-width:600px;margin:0 auto;\">\n<h2>Hey {{ $json.attendees.name.split(' ')[0] }},</h2>\n<p>Thank you for being part of <strong>{{ $('Event Ended Webhook').item.json.body.eventName }}</strong>!</p>\n<p>We're already planning the next one and your feedback will shape it. Could you share your thoughts? It takes 3 minutes:</p>\n<p style=\"text-align:center;margin:24px 0;\">\n<a href=\"{{ $('Prepare Mail Merge').item.json.formUrl }}\" style=\"background:#ec4899;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:16px;font-weight:bold;\">Share Your Feedback</a>\n</p>\n<p style=\"color:#6b7280;\">Your insights help us bring better speakers, topics, and experiences.</p>\n<p>See you at the next one!<br/>The {{ $('Event Ended Webhook').item.json.body.organizerName }} Team</p>\n</div>"
+      },
+      "id": "orch-1001-0001-4000-8000-000000000007",
+      "name": "Email Each Attendee",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1630,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "YOUR_SMTP_CREDENTIAL_ID",
+          "name": "SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#events",
+        "text": "=:mega: *Event feedback form deployed!*\n\n*Event:* {{ $('Event Ended Webhook').item.json.body.eventName }}\n*Attendees emailed:* {{ $('Event Ended Webhook').item.json.body.attendees.length }}\n*Form:* {{ $('Prepare Mail Merge').item.json.formUrl }}\n\n_AI-generated, auto-distributed by Formfex_",
+        "otherOptions": {}
+      },
+      "id": "orch-1001-0001-4000-8000-000000000008",
+      "name": "Slack: Form Deployed",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1630,
+        520
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Phase 2 — Monitor & Analyze\n\nFormfex Webhook Trigger fires in real-time on every new response.\n\n**Track A (every response):** AI pulse check → Slack\n**Track B (at 100 responses):** Full AI report → Next event plan → PDF report → Slack",
+        "width": 520,
+        "height": 160,
+        "color": 6
+      },
+      "id": "orch-0000-0000-0000-000000000002",
+      "name": "Sticky Note — Phase 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "event": "FORM_RESPONSE_CREATED"
+      },
+      "id": "orch-2001-0001-4000-8000-000000000001",
+      "name": "New Event Feedback",
+      "type": "n8n-nodes-formfex.formfexWebhookTrigger",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        960
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "response",
+        "operation": "count",
+        "formId": "={{ $('New Event Feedback').item.json.formId }}"
+      },
+      "id": "orch-2001-0001-4000-8000-000000000002",
+      "name": "Response Count",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        200,
+        960
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.count }}",
+              "rightValue": 100,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "orch-2001-0001-4000-8000-000000000003",
+      "name": "Exactly 100?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        460,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "ai",
+        "operation": "analyticsChat",
+        "formId": "={{ $('New Event Feedback').item.json.formId }}",
+        "message": "Analyze all 100 event feedback responses. Provide a comprehensive report:\n\n1. OVERALL: Average event rating and satisfaction distribution\n2. SPEAKERS: Rank each speaker by content quality and presentation style. Who was the crowd favorite? Who needs improvement?\n3. LOGISTICS: Venue/platform rating, timing feedback, networking satisfaction\n4. CONTENT: Most valuable takeaways mentioned (top 5 themes)\n5. FUTURE TOPICS: What topics do attendees want next? (ranked by demand)\n6. RETENTION: % who would definitely attend next event vs unlikely\n7. VERBATIM: 3 best positive quotes and 3 most constructive criticisms\n\nFormat as a professional post-event report suitable for stakeholders."
+      },
+      "id": "orch-2001-0001-4000-8000-000000000004",
+      "name": "AI: Full Event Report",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        720,
+        860
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#events",
+        "text": "=:tada: *100 Response Milestone — Full Event Report*\n\n{{ $json.answer }}\n\n---\n_Formfex AI Analytics — auto-generated at 100 responses_",
+        "otherOptions": {}
+      },
+      "id": "orch-2001-0001-4000-8000-000000000005",
+      "name": "Slack: Full Report",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        980,
+        860
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "ai",
+        "operation": "analyticsChat",
+        "formId": "={{ $('New Event Feedback').item.json.formId }}",
+        "message": "Based on speaker ratings and feedback, which speakers should we invite back and which topics should we prioritize for the next event? Give me a concise recommendation list.",
+        "sessionId": "={{ $json.sessionId }}"
+      },
+      "id": "orch-2001-0001-4000-8000-000000000006",
+      "name": "AI: Next Event Plan",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        1240,
+        860
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#events-planning",
+        "text": "=:crystal_ball: *AI Recommendation for Next Event*\n\n{{ $json.answer }}\n\n_Follow-up analysis from the same Formfex AI session_",
+        "otherOptions": {}
+      },
+      "id": "orch-2001-0001-4000-8000-000000000007",
+      "name": "Slack: Planning Insights",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1500,
+        860
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "ai",
+        "operation": "smartAnalytics",
+        "formId": "={{ $('New Event Feedback').item.json.formId }}",
+        "callbackUrl": "https://your-app.com/webhooks/formfex-analytics"
+      },
+      "id": "orch-2001-0001-4000-8000-000000000008",
+      "name": "Smart Analytics: PDF Report",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        720,
+        1060
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "ai",
+        "operation": "analyticsChat",
+        "formId": "={{ $('New Event Feedback').item.json.formId }}",
+        "message": "Quick pulse check: what's the overall sentiment of the latest batch of responses? One paragraph, include the current response rate trend."
+      },
+      "id": "orch-2001-0001-4000-8000-000000000009",
+      "name": "AI: Pulse Check",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        720,
+        1200
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#events",
+        "text": "=:bar_chart: *Event Feedback Pulse* ({{ $('Response Count').item.json.count }} responses)\n\n{{ $json.answer }}",
+        "otherOptions": {}
+      },
+      "id": "orch-2001-0001-4000-8000-000000000010",
+      "name": "Slack: Pulse Update",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        980,
+        1200
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "### Track B — 100 Response Milestone\nFull AI report → Speaker recommendations → PDF analytics",
+        "width": 380,
+        "height": 80,
+        "color": 2
+      },
+      "id": "orch-0000-0000-0000-000000000003",
+      "name": "Sticky Note — Track B",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        680,
+        760
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Track A — Every Response\nQuick AI sentiment pulse → Slack",
+        "width": 340,
+        "height": 80,
+        "color": 3
+      },
+      "id": "orch-0000-0000-0000-000000000004",
+      "name": "Sticky Note — Track A",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        680,
+        1120
+      ]
+    }
+  ],
+  "connections": {
+    "Event Ended Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI: Generate Event Survey",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Generate Event Survey": {
+      "main": [
+        [
+          {
+            "node": "Create Feedback Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Feedback Form": {
+      "main": [
+        [
+          {
+            "node": "Publish Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish Form": {
+      "main": [
+        [
+          {
+            "node": "Register Form for Monitoring",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack: Form Deployed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Register Form for Monitoring": {
+      "main": [
+        [
+          {
+            "node": "Prepare Mail Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Mail Merge": {
+      "main": [
+        [
+          {
+            "node": "Split Attendees",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Attendees": {
+      "main": [
+        [
+          {
+            "node": "Email Each Attendee",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Event Feedback": {
+      "main": [
+        [
+          {
+            "node": "Response Count",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Response Count": {
+      "main": [
+        [
+          {
+            "node": "Exactly 100?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exactly 100?": {
+      "main": [
+        [
+          {
+            "node": "AI: Full Event Report",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Smart Analytics: PDF Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI: Pulse Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Full Event Report": {
+      "main": [
+        [
+          {
+            "node": "Slack: Full Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack: Full Report": {
+      "main": [
+        [
+          {
+            "node": "AI: Next Event Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Next Event Plan": {
+      "main": [
+        [
+          {
+            "node": "Slack: Planning Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Pulse Check": {
+      "main": [
+        [
+          {
+            "node": "Slack: Pulse Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "formfex-demo"
+    },
+    {
+      "name": "events"
+    },
+    {
+      "name": "orchestrator"
+    },
+    {
+      "name": "webhook"
+    }
+  ],
+  "id": "11"
+}

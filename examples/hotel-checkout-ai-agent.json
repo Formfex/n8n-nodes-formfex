@@ -1,0 +1,738 @@
+{
+  "name": "Hotel Guest Satisfaction — AI Agent Orchestrator",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# Hotel Guest Satisfaction — AI Agent\n\nThis workflow uses **autonomous AI Agents** instead of hardcoded pipelines.\n\n**Phase 1:** An AI Agent receives guest checkout data and autonomously decides how to build a personalized survey, creates it, publishes it, registers it for webhook monitoring, and prepares the email.\n\n**Phase 2:** A Formfex webhook trigger fires on each new form response. Another AI Agent analyzes sentiment, detects negative feedback for urgent alerts, and generates milestone reports.\n\nThe agents have access to Formfex tools and make all decisions independently.",
+        "width": 900,
+        "height": 300
+      },
+      "id": "ai-1600-0000-0000-000000000000",
+      "name": "Sticky Note — Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Phase 1 — AI Agent: Create & Distribute\n\nThe agent receives raw checkout data and autonomously:\n- Crafts a tailored AI prompt based on guest context\n- Generates and creates the form via AI\n- Publishes the form for public access\n- Registers the form for webhook monitoring\n- Returns the form URL for email distribution",
+        "width": 700,
+        "height": 180,
+        "color": 4
+      },
+      "id": "ai-1600-0000-0000-000000000001",
+      "name": "Sticky Note — Phase 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Phase 2 — AI Agent: Analyze & Route\n\nTriggered by a Formfex webhook on FORM_RESPONSE_CREATED events.\nNo manual form ID or polling needed — the webhook fires automatically for forms registered in Phase 1.\n\nThe agent receives each new response and autonomously:\n- Analyzes sentiment and extracts insights\n- Flags negative feedback for urgent escalation\n- Generates comprehensive reports at milestones",
+        "width": 520,
+        "height": 200,
+        "color": 6
+      },
+      "id": "ai-1600-0000-0000-000000000002",
+      "name": "Sticky Note — Phase 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hotel-checkout-ai",
+        "options": {}
+      },
+      "id": "ai-1601-0001-4000-8000-000000000001",
+      "name": "PMS Checkout Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -60,
+        300
+      ],
+      "webhookId": "hotel-checkout-ai"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "agentInput",
+              "value": "=A guest just checked out. Here is their stay data:\n\nGuest: {{ $json.body.guestName }}\nEmail: {{ $json.body.guestEmail }}\nHotel: {{ $json.body.hotelName }}\nHotel Domain: {{ $json.body.hotelDomain }}\nRoom Type: {{ $json.body.roomType }}\nNights: {{ $json.body.nights }}\nPurpose: {{ $json.body.stayPurpose || 'leisure' }}\nServices Used: {{ $json.body.servicesUsed.join(', ') }}\nLoyalty Tier: {{ $json.body.loyaltyTier || 'none' }}\nComplaints: {{ $json.body.complaints || 'none' }}\nRoom Amenities: {{ $json.body.roomAmenities.join(', ') }}\nLate Check-in: {{ $json.body.lateCheckin || false }}\nGuest Language: {{ $json.body.guestLanguage || 'en' }}\n\nFollow the steps in your system prompt to generate, review, and publish this form. Return a JSON with formId and url as your last message.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ai-1601-0001-4000-8000-000000000002",
+      "name": "Set: Prepare Context",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are an autonomous hotel guest experience manager. Your job is to create personalized post-stay feedback surveys.\n\nYou have these tools available:\n- **Formfex AI: Generate Form**: Give it a prompt, title, and language. It generates a form using AI AND creates it in the system. Returns the created form object with id, title, and schema.\n- **Formfex Form: Get**: Get a form by ID to review it.\n- **Formfex Form: Update**: Update a form's title if needed.\n- **Formfex Form: Publish**: Publish a form to get a shareUrl.\n\nWhen you receive guest checkout data, follow these steps IN ORDER:\n\n**Step 1 — Generate and Create Form:**\nUse 'Formfex AI: Generate Form'. Provide:\n- formTitle: 'How was your stay at [hotelName]?'\n- prompt: Describe a guest satisfaction survey personalized to THIS guest's stay. Include dynamic rules based on:\n  - Room type (suite vs standard vs family)\n  - Each service they used (spa, restaurant, pool, gym, etc.)\n  - Stay purpose (business: ask WiFi/workspace, leisure: ask ambiance, family: ask kids facilities)\n  - Late check-in experience if applicable\n  - Complaint follow-up if any complaints existed\n  - Loyalty tier recognition if gold/platinum\n- formLanguage: the guest's preferred language code\nThis tool generates the form with AI and creates it. The response contains the form's id.\n\n**Step 2 — Review the Form:**\nUse 'Formfex Form: Get' with the form id from Step 1. Verify the questions match the guest's stay context.\n\n**Step 3 — Update if Needed:**\nIf anything needs fixing, use 'Formfex Form: Update'.\n\n**Step 4 — Publish:**\nUse 'Formfex Form: Publish' with the form id. This returns the shareUrl.\n\n**Step 5 — Return Result:**\nReturn a JSON object with the formId and the full URL:\n{\"formId\": \"<the form UUID>\", \"url\": \"https://formfex.com/forms/response/<shareUrl>\"}\n\nIMPORTANT: Follow steps in order. Do NOT skip steps. You MUST return valid JSON with formId included — it is needed for automatic response monitoring."
+        },
+        "promptType": "define",
+        "text": "={{ $json.agentInput }}"
+      },
+      "id": "ai-1601-0001-4000-8000-000000000003",
+      "name": "AI Agent: Create & Distribute",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "ai",
+        "operation": "generateForm",
+        "title": "={{ $fromAI('formTitle', 'Title for the form, e.g. How was your stay at Hotel Name?', 'string') }}",
+        "prompt": "={{ $fromAI('prompt', 'A concise description of the form to generate, max 400 chars', 'string') }}",
+        "language": "={{ $fromAI('formLanguage', 'Language code: en, tr, es, it, de, nl', 'string') }}"
+      },
+      "id": "ai-1601-tool-generate",
+      "name": "Formfex AI: Generate Form",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        320,
+        540
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      },
+      "usableAsTool": true
+    },
+    {
+      "parameters": {
+        "resource": "form",
+        "operation": "get",
+        "formId": "={{ $fromAI('formId', 'The UUID of the form to retrieve', 'string') }}"
+      },
+      "id": "ai-1601-tool-getform",
+      "name": "Formfex Form: Get",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        480,
+        540
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      },
+      "usableAsTool": true
+    },
+    {
+      "parameters": {
+        "resource": "form",
+        "operation": "update",
+        "formId": "={{ $fromAI('formId', 'The UUID of the form to update', 'string') }}",
+        "updateFields": {
+          "title": "={{ $fromAI('title', 'The new title for the form', 'string') }}"
+        }
+      },
+      "id": "ai-1601-tool-updateform",
+      "name": "Formfex Form: Update",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        640,
+        540
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      },
+      "usableAsTool": true
+    },
+    {
+      "parameters": {
+        "resource": "form",
+        "operation": "publish",
+        "formId": "={{ $fromAI('formId', 'The UUID of the form to publish', 'string') }}",
+        "publishFields": {
+          "visibility": "PUBLIC"
+        }
+      },
+      "id": "ai-1601-tool-publish",
+      "name": "Formfex Form: Publish",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        800,
+        540
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      },
+      "usableAsTool": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract formId and URL from the AI Agent's output.\nconst output = $input.first().json.output || $input.first().json.text || '';\nlet formId = null;\nlet formUrl = null;\nlet shareUrl = null;\n\n// Try to parse JSON from agent output\ntry {\n  const jsonMatch = output.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    const parsed = JSON.parse(jsonMatch[0]);\n    formId = parsed.formId || parsed.smartFormId;\n    formUrl = parsed.formUrl || parsed.url;\n    shareUrl = parsed.shareUrl;\n  }\n} catch(e) {}\n\n// Fix formUrl: ensure correct path\nif (formUrl) {\n  if (!formUrl.startsWith('http')) {\n    formUrl = 'https://formfex.com/forms/response/' + formUrl;\n  } else if (!formUrl.includes('/forms/response/')) {\n    const slug = formUrl.split('/').pop();\n    formUrl = 'https://formfex.com/forms/response/' + slug;\n  }\n}\n\n// Fallback: extract UUID\nif (!formId) {\n  const uuidMatch = output.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);\n  if (uuidMatch) formId = uuidMatch[0];\n}\n\n// Fallback: extract URL\nif (!formUrl) {\n  const urlMatch = output.match(/https:\\/\\/formfex\\.com\\/forms\\/response\\/[\\w-]+/);\n  if (urlMatch) formUrl = urlMatch[0];\n}\n\n// Construct URL from shareUrl or formId\nif (!formUrl && shareUrl) {\n  formUrl = 'https://formfex.com/forms/response/' + shareUrl;\n}\nif (!formUrl && formId) {\n  formUrl = 'https://formfex.com/forms/response/' + formId;\n}\n\n// Register for webhook monitoring\nif (formId) {\n  const staticData = $getWorkflowStaticData('global');\n  const watchedFormIds = staticData.watchedFormIds ?? [];\n  if (!watchedFormIds.includes(formId)) {\n    watchedFormIds.push(formId);\n    staticData.watchedFormIds = watchedFormIds;\n  }\n}\n\nreturn [{ json: { formId, formUrl, output } }];"
+      },
+      "id": "ai-1601-tool-register",
+      "name": "Register Form for Monitoring",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {}
+      },
+      "id": "ai-1601-0001-4000-8000-000000000005",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        160,
+        540
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_GOOGLE_GEMINI_CREDENTIAL_ID",
+          "name": "Google Gemini"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "feedback@formfex.com",
+        "toEmail": "={{ $('PMS Checkout Webhook').item.json.body.guestEmail }}",
+        "subject": "=Thank you for staying at {{ $('PMS Checkout Webhook').item.json.body.hotelName }}!",
+        "emailType": "html",
+        "html": "=<div style=\"font-family:sans-serif;max-width:600px;margin:0 auto;\">\n<h2>Dear {{ $('PMS Checkout Webhook').item.json.body.guestName }},</h2>\n<p>Thank you for choosing <strong>{{ $('PMS Checkout Webhook').item.json.body.hotelName }}</strong> for your {{ $('PMS Checkout Webhook').item.json.body.nights }}-night stay.</p>\n<p>We'd love to hear about your experience. It only takes 2 minutes:</p>\n<p style=\"text-align:center;margin:24px 0;\">\n<a href=\"{{ $json.formUrl }}\" style=\"background:#059669;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:16px;\">Share Your Feedback</a>\n</p>\n<p>Your feedback helps us create better experiences for every guest.</p>\n<p>Warm regards,<br/>{{ $('PMS Checkout Webhook').item.json.body.hotelName }} Team</p>\n</div>",
+        "options": {}
+      },
+      "id": "ai-1601-0001-4000-8000-000000000006",
+      "name": "Email Guest",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        900,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "YOUR_SMTP_CREDENTIAL_ID",
+          "name": "SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "event": "FORM_RESPONSE_CREATED"
+      },
+      "id": "ai-1602-0001-4000-8000-000000000001",
+      "name": "New Guest Feedback",
+      "type": "n8n-nodes-formfex.formfexWebhookTrigger",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        960
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "agentInput",
+              "value": "=A new guest feedback response was received.\n\nForm ID: {{ $json.formId }}\nResponse data: {{ JSON.stringify($json) }}\n\nYour mission:\n1. Analyze this response using Formfex AI Analytics Chat - determine the sentiment (positive/neutral/negative), overall rating, and any negative items\n2. If the sentiment is NEGATIVE (rating <= 2 or explicit complaints): this is URGENT - report it immediately\n3. Check the total response count for this form\n4. If the count is a multiple of 50: generate a comprehensive guest satisfaction report\n5. Report your findings so the next nodes can route to the appropriate Slack channels",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ai-1602-0001-4000-8000-000000000002",
+      "name": "Set: Prepare Response Context",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are an autonomous hotel guest feedback analyst. You monitor incoming guest feedback and take appropriate actions.\n\nIMPORTANT — sessionId usage for analyticsChat:\n- On your FIRST call to analyticsChat, pass an empty string for sessionId.\n- The response will include a sessionId. Use that sessionId on ALL subsequent analyticsChat calls to maintain conversation context.\n\nFor EVERY new response:\n1. Use Formfex analyticsChat to analyze the latest response (sessionId: empty string for first call). Evaluate: sentiment (positive|neutral|negative), rating (1-5), summary, and identify any negative feedback items.\n\n2. Determine if this is NEGATIVE: true if rating <= 2 OR explicit complaints mentioned.\n\n3. Use Formfex response count to get the total count.\n\n4. If the count is a multiple of 50, run a comprehensive satisfaction report via analyticsChat (reuse the sessionId from step 1): average rating, top 3 strengths, top 3 improvements, recommendation rate, business vs leisure comparison.\n\n5. Output clean JSON with: rating (number), sentiment (string), summary (string), negativeItems (array), isNegative (boolean), totalCount (number), isMilestone (boolean), milestoneReport (string or null).\n\nBe precise. Every response could reveal a guest who needs immediate attention."
+        },
+        "promptType": "define",
+        "text": "={{ $json.agentInput }}"
+      },
+      "id": "ai-1602-0001-4000-8000-000000000003",
+      "name": "AI Agent: Analyze & Route",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        500,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "ai",
+        "operation": "analyticsChat",
+        "formId": "={{ $fromAI('formId', 'The UUID of the form to analyze', 'string') }}",
+        "message": "={{ $fromAI('message', 'The analytics question to ask about the form data', 'string') }}",
+        "sessionId": ""
+      },
+      "id": "ai-1602-0001-4000-8000-000000000004",
+      "name": "Formfex Tool: Analyze",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        500,
+        1160
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      },
+      "usableAsTool": true
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {}
+      },
+      "id": "ai-1602-0001-4000-8000-000000000005",
+      "name": "Google Gemini Chat Model 2",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        300,
+        1160
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_GOOGLE_GEMINI_CREDENTIAL_ID",
+          "name": "Google Gemini"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.output || $input.first().json.text || '';\ntry {\n  const jsonMatch = output.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) return [{ json: JSON.parse(jsonMatch[0]) }];\n} catch(e) {}\nreturn [{ json: { sentiment: 'unknown', rating: 0, isNegative: false, summary: output, negativeItems: [], totalCount: 0, isMilestone: false } }];"
+      },
+      "id": "ai-1602-0001-4000-8000-000000000006",
+      "name": "Parse Agent Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.isNegative }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "ai-1602-0001-4000-8000-000000000007",
+      "name": "Route: Negative?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "YOUR_SLACK_CHANNEL_ID",
+          "mode": "id"
+        },
+        "text": "=:warning: *Urgent: Negative Guest Feedback*\n\n*Rating:* {{ $json.rating }}/5\n*Sentiment:* {{ $json.sentiment }}\n*Summary:* {{ $json.summary }}\n*Issues:* {{ $json.negativeItems.join(', ') }}\n\n:point_right: Immediate follow-up recommended.\n\n_AI Agent analyzed by Formfex_",
+        "otherOptions": {}
+      },
+      "id": "ai-1602-0001-4000-8000-000000000008",
+      "name": "Slack: Urgent Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        860
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.isMilestone }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "ai-1602-0001-4000-8000-000000000009",
+      "name": "Route: Milestone?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        1080
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "YOUR_SLACK_CHANNEL_ID",
+          "mode": "id"
+        },
+        "text": "=:hotel: *Guest Satisfaction Milestone Report* ({{ $json.totalCount }} total responses)\n\n{{ $json.summary }}\n\n_Formfex AI Agent — auto-generated every 50 responses_",
+        "otherOptions": {}
+      },
+      "id": "ai-1602-0001-4000-8000-000000000010",
+      "name": "Slack: Management Report",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1580,
+        1000
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "YOUR_SLACK_CHANNEL_ID",
+          "mode": "id"
+        },
+        "text": "=:memo: *New Guest Feedback*\n\n*Rating:* {{ $json.rating }}/5\n*Sentiment:* {{ $json.sentiment }}\n*Summary:* {{ $json.summary }}\n*Total Responses:* {{ $json.totalCount }}\n\n_Formfex AI Agent — feedback log_",
+        "otherOptions": {}
+      },
+      "id": "ai-1602-0001-4000-8000-000000000011",
+      "name": "Slack: Feedback Log",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1580,
+        1160
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "PMS Checkout Webhook": {
+      "main": [
+        [
+          {
+            "node": "Set: Prepare Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: Prepare Context": {
+      "main": [
+        [
+          {
+            "node": "AI Agent: Create & Distribute",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent: Create & Distribute": {
+      "main": [
+        [
+          {
+            "node": "Register Form for Monitoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Register Form for Monitoring": {
+      "main": [
+        [
+          {
+            "node": "Email Guest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formfex AI: Generate Form": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent: Create & Distribute",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formfex Form: Get": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent: Create & Distribute",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formfex Form: Update": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent: Create & Distribute",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formfex Form: Publish": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent: Create & Distribute",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent: Create & Distribute",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Guest Feedback": {
+      "main": [
+        [
+          {
+            "node": "Set: Prepare Response Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: Prepare Response Context": {
+      "main": [
+        [
+          {
+            "node": "AI Agent: Analyze & Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent: Analyze & Route": {
+      "main": [
+        [
+          {
+            "node": "Parse Agent Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formfex Tool: Analyze": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent: Analyze & Route",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model 2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent: Analyze & Route",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Agent Output": {
+      "main": [
+        [
+          {
+            "node": "Route: Negative?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route: Negative?": {
+      "main": [
+        [
+          {
+            "node": "Slack: Urgent Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route: Milestone?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route: Milestone?": {
+      "main": [
+        [
+          {
+            "node": "Slack: Management Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack: Feedback Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "formfex-demo"
+    },
+    {
+      "name": "hotel"
+    },
+    {
+      "name": "ai-agent"
+    },
+    {
+      "name": "webhook"
+    }
+  ],
+  "id": "16"
+}

@@ -110,6 +110,53 @@ When creating an API key, select the scopes your workflow needs:
 | `AI_GENERATE` | Generate forms with AI |
 | `ANALYTICS_READ` | Access smart analytics and analytics chat |
 
+## Workflow Examples
+
+This package includes 8 ready-to-use workflow templates in the `examples/` folder. After installing the node, find them at:
+
+```
+node_modules/n8n-nodes-formfex/examples/
+```
+
+Import any workflow into n8n:
+
+```bash
+n8n import:workflow --input=node_modules/n8n-nodes-formfex/examples/<filename>.json
+```
+
+### Full Orchestrators (Create + Monitor)
+
+These workflows generate a form with AI, publish it, email the link, then monitor responses with analytics and Slack notifications.
+
+| Workflow | File | Use Case |
+|----------|------|----------|
+| **Event Follow-up** | `event-followup-orchestrator.json` | Post-event attendee feedback with AI analytics and planning insights |
+| **Churn Prevention** | `churn-prevention-orchestrator.json` | SaaS exit survey for churning users with product team alerts |
+| **Post-Delivery Review** | `post-delivery-orchestrator.json` | E-commerce product review collection after delivery confirmation |
+| **Patient Intake Interview** | `patient-intake-orchestrator.json` | Healthcare intake via AI conversational Smart Form with triage routing |
+| **Hotel Checkout Satisfaction** | `hotel-checkout-orchestrator.json` | Personalized guest checkout feedback via Smart Form interviews |
+| **Community Event Manager** | `community-event-orchestrator.json` | Event registration form with AI-powered candidate screening |
+
+### AI Agent Orchestrators
+
+These workflows use n8n's AI Agent node with Formfex tools, allowing an LLM to autonomously create and personalize forms based on input data.
+
+| Workflow | File | Use Case |
+|----------|------|----------|
+| **Hotel Guest Satisfaction** | `hotel-checkout-ai-agent.json` | AI agent creates personalized post-stay surveys per guest profile |
+| **HR Onboarding 30-Day** | `hr-onboarding-ai-agent.json` | AI agent generates 30-day check-in surveys tailored to each employee |
+
+### Setup
+
+Each example workflow requires you to configure your own credentials after import:
+
+1. **Formfex API** — Create an API key at [Formfex > Account > Integrations](https://formfex.com)
+2. **SMTP** — Your email provider (e.g., Resend, SendGrid, Amazon SES)
+3. **Slack** *(optional)* — Slack Bot token for notifications
+4. **Google Gemini** *(AI Agent workflows only)* — Google AI API key
+
+Replace the `YOUR_*` placeholder values in each workflow with your actual credential IDs.
+
 ## Resources
 
 - [Formfex Website](https://formfex.com)

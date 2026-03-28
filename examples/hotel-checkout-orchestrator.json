@@ -1,0 +1,789 @@
+{
+  "name": "Hotel Checkout Satisfaction — Full Orchestrator (Create + Monitor)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# Hotel Checkout Satisfaction — Full Orchestrator\n\n**Phase 1 (Top):** Daily schedule → Mock guest data → AI Agent creates personalized Smart Form → Publishes → Emails guest\n**Phase 2 (Bottom):** Session completed webhook → AI Agent sentiment analysis → Classification routing → Slack alerts / Thank-you email\n\nCombines Daily Creation (WF22) + Monitor (WF23) into a single canvas.",
+        "width": 800,
+        "height": 240
+      },
+      "id": "wf27-note-overview",
+      "name": "Sticky Note — Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Phase 1 — Daily Creation\nFires daily at 14:00 (after checkout hours).\nAI Agent creates personalized smart form interviews per guest.\nGuest profile, complaints, and facilities shape the interview.",
+        "width": 500,
+        "height": 160,
+        "color": 4
+      },
+      "id": "wf27-note-phase1",
+      "name": "Sticky Note — Phase 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Phase 2 — Monitor & Route\nWebhook fires on session completion.\nAI Agent analyzes sentiment via SmartForm Chat.\nRoutes by classification:\n- URGENT → Immediate Slack alert\n- DISSATISFIED → Guest recovery Slack\n- NEUTRAL → Daily feedback log\n- SATISFIED → Thank-you email + review request",
+        "width": 500,
+        "height": 200,
+        "color": 5
+      },
+      "id": "wf27-note-phase2",
+      "name": "Sticky Note — Phase 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        780
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 14 * * *"
+            }
+          ]
+        }
+      },
+      "id": "wf27-schedule",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -60,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  { json: { guestName: \"Sarah Chen\", guestEmail: \"ctamyildirim@gmail.com\", room: \"412, Suite\", guestType: \"Couple, ages 30-35\", facilities: \"Spa, restaurant\", complaints: \"Slow WiFi in room\", stayDuration: \"3 nights\", hotelName: \"Grand Hotel Istanbul\" } },\n  { json: { guestName: \"Marcus Johnson\", guestEmail: \"ctamyildirim@gmail.com\", room: \"215, Standard\", guestType: \"Family with 2 kids (ages 6 and 9)\", facilities: \"Pool, kids club\", complaints: \"None\", stayDuration: \"5 nights\", hotelName: \"Grand Hotel Istanbul\" } },\n  { json: { guestName: \"Akiko Tanaka\", guestEmail: \"ctamyildirim@gmail.com\", room: \"801, Penthouse\", guestType: \"Business solo traveler, age 45\", facilities: \"Gym, conference room, business center\", complaints: \"Noisy AC unit, late room service on second night\", stayDuration: \"2 nights\", hotelName: \"Grand Hotel Istanbul\" } }\n];"
+      },
+      "id": "wf27-mock-data",
+      "name": "Code: Mock Guest Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "agentInput",
+              "value": "=Create a personalized post-checkout satisfaction interview for this guest:\n\nName: {{ $json.guestName }}\nEmail: {{ $json.guestEmail }}\nRoom: {{ $json.room }}\nGuest Type: {{ $json.guestType }}\nFacilities Used: {{ $json.facilities }}\nComplaints: {{ $json.complaints }}\nStay Duration: {{ $json.stayDuration }}\nHotel: {{ $json.hotelName }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "guestName",
+              "value": "={{ $json.guestName }}",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "guestEmail",
+              "value": "={{ $json.guestEmail }}",
+              "type": "string"
+            },
+            {
+              "id": "4",
+              "name": "hotelName",
+              "value": "={{ $json.hotelName }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf27-set",
+      "name": "Set: Prepare Context",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are a hospitality experience specialist at Grand Hotel Istanbul. You create personalized post-checkout satisfaction interviews.\n\nTools:\n- Formfex Smart Form: Create — Creates a conversational AI interview\n- Formfex Smart Form: Publish — Publishes the smart form\n\nSteps:\n**Step 1 — Create Smart Form:**\nUse 'Formfex Smart Form: Create' with:\n- title: \"Checkout Feedback — [Guest Name]\"\n- purpose: A personalized purpose including guest profile, facilities used, complaints. Example: \"You are a warm hospitality specialist at Grand Hotel Istanbul. Interview [name] ([type]) who stayed in room [room] for [duration]. They used [facilities]. [If complaints: They reported [complaints] — probe deeper on this and understand the impact.] Ask about overall satisfaction, specific experiences, and whether they would recommend.\"\n- maxQuestions: 3\n\n**Step 2 — Publish:**\nUse 'Formfex Smart Form: Publish' with the smartFormId. The publish response contains a `shortId` field.\n\n**Step 3 — Return:**\nReturn JSON with the shortId from the publish response. The public URL format is ALWAYS: https://formfex.com/sf/<shortId>\n{\n  \"smartFormId\": \"UUID\",\n  \"shortId\": \"the shortId from publish response\",\n  \"formUrl\": \"https://formfex.com/sf/<shortId>\",\n  \"guestName\": \"name\",\n  \"guestEmail\": \"email\"\n}\n\nIMPORTANT: Purpose MUST be personalized per guest. Include specific details.\nIMPORTANT: The ONLY valid domain is formfex.com. The ONLY valid path for smart forms is /sf/<shortId>. Never use any other domain or path."
+        },
+        "promptType": "define",
+        "text": "={{ $json.agentInput }}"
+      },
+      "id": "wf27-agent-create",
+      "name": "AI Agent: Guest Interview Creator",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        600,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {}
+      },
+      "id": "wf27-gemini-create",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        260,
+        540
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_GOOGLE_GEMINI_CREDENTIAL_ID",
+          "name": "Google Gemini"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "smartForm",
+        "operation": "create",
+        "purpose": "={{ $fromAI('purpose', 'Detailed purpose for the AI interviewer', 'string') }}",
+        "additionalFields": {
+          "title": "={{ $fromAI('title', 'Title for the smart form', 'string') }}",
+          "maxQuestions": "={{ $fromAI('maxQuestions', 'Max questions 1-15', 'number') }}"
+        }
+      },
+      "id": "wf27-tool-create",
+      "name": "Formfex Smart Form: Create",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        420,
+        540
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      },
+      "usableAsTool": true
+    },
+    {
+      "parameters": {
+        "resource": "smartForm",
+        "operation": "publish",
+        "smartFormId": "={{ $fromAI('smartFormId', 'UUID of smart form to publish', 'string') }}"
+      },
+      "id": "wf27-tool-publish",
+      "name": "Formfex Smart Form: Publish",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        580,
+        540
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      },
+      "usableAsTool": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.output || $input.first().json.text || '';\nlet result = {};\ntry {\n  const jsonMatch = output.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) result = JSON.parse(jsonMatch[0]);\n} catch(e) {}\n\nif (!result.smartFormId) {\n  const uuidMatch = output.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);\n  if (uuidMatch) result.smartFormId = uuidMatch[0];\n}\n\n// Prefer publicUrl from the API publish response (canonical, always correct)\nresult.formUrl = result.publicUrl || null;\n\n// Fallback: extract shortId and build URL manually\nif (!result.formUrl) {\n  let shortId = result.shortId || null;\n  if (!shortId) {\n    const slugMatch = output.match(/\\/(?:sf|s|forms\\/response)\\/([\\w_-]{8,15})/);\n    if (slugMatch) shortId = slugMatch[1];\n  }\n  if (!shortId && (result.url || result.formUrl)) {\n    const urlSlug = (result.url || result.formUrl).split('/').filter(Boolean).pop();\n    if (urlSlug && /^[\\w_-]{8,15}$/.test(urlSlug)) shortId = urlSlug;\n  }\n  if (shortId) result.formUrl = 'https://formfex.com/sf/' + shortId;\n}\n\nconst setData = $('Set: Prepare Context').first().json;\nresult.guestName = result.guestName || setData.guestName;\nresult.guestEmail = result.guestEmail || setData.guestEmail;\nresult.hotelName = result.hotelName || setData.hotelName;\n\nreturn [{ json: result }];"
+      },
+      "id": "wf27-parse-create",
+      "name": "Code: Extract Form Link",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "feedback@formfex.com",
+        "toEmail": "={{ $json.guestEmail }}",
+        "subject": "=How was your stay, {{ $json.guestName.split(' ')[0] }}? We'd love to hear from you",
+        "emailType": "html",
+        "html": "=<div style=\"font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;\">\n  <div style=\"background-color: #1e293b; padding: 40px 30px; text-align: center;\">\n    <h1 style=\"color: #ffffff; margin: 0; font-size: 24px;\">Grand Hotel Istanbul</h1>\n    <p style=\"color: #94a3b8; margin: 8px 0 0 0; font-size: 14px;\">Guest Experience Feedback</p>\n  </div>\n  <div style=\"padding: 40px 30px;\">\n    <h2 style=\"color: #1e293b; margin: 0 0 16px 0; font-size: 20px;\">Thank you for staying with us, {{ $json.guestName.split(' ')[0] }}!</h2>\n    <p style=\"color: #475569; line-height: 1.6; margin: 0 0 24px 0;\">We hope you enjoyed your time at Grand Hotel Istanbul. Your feedback helps us create even better experiences for our guests.</p>\n    <p style=\"color: #475569; line-height: 1.6; margin: 0 0 32px 0;\">We've prepared a short personalized interview just for you. It takes about 3-5 minutes and helps us understand what made your stay special — and where we can improve.</p>\n    <div style=\"text-align: center; margin: 32px 0;\">\n      <a href=\"{{ $json.formUrl }}\" style=\"background-color: #059669; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; display: inline-block;\">Share Your Experience</a>\n    </div>\n    <p style=\"color: #94a3b8; font-size: 13px; text-align: center; margin: 24px 0 0 0;\">This interview is personalized for your stay and powered by AI to make the conversation natural and easy.</p>\n  </div>\n  <div style=\"background-color: #f8fafc; padding: 24px 30px; text-align: center; border-top: 1px solid #e2e8f0;\">\n    <p style=\"color: #94a3b8; font-size: 12px; margin: 0;\">Grand Hotel Istanbul &bull; Guest Relations<br>Powered by <a href=\"https://formfex.com\" style=\"color: #059669; text-decoration: none;\">Formfex</a></p>\n  </div>\n</div>",
+        "options": {}
+      },
+      "id": "wf27-email-invite",
+      "name": "Email: Invite Guest",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1000,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "YOUR_SMTP_CREDENTIAL_ID",
+          "name": "SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "event": "SMART_FORM_SESSION_COMPLETED",
+        "options": {}
+      },
+      "id": "wf27-monitor-webhook",
+      "name": "Formfex Webhook Trigger",
+      "type": "n8n-nodes-formfex.formfexWebhookTrigger",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        1000
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "agentInput",
+              "value": "=A guest completed a checkout satisfaction interview.\n\nSmart Form ID: {{ $json.data?.smartFormId || $json.smartFormId }}\n\nSession summary: {{ $json.data?.session?.summary || 'N/A' }}\nSentiment: {{ $json.data?.session?.sentimentScore || 'N/A' }}\n\nAnalyze this guest's experience and classify their satisfaction.",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "smartFormId",
+              "value": "={{ $json.data?.smartFormId || $json.smartFormId }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf27-monitor-set",
+      "name": "Set: Prepare Sentiment Analysis",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are a hotel guest satisfaction analyst. You evaluate completed checkout interviews.\n\nTool:\n- Formfex SmartForm: Chat — Ask questions about the interview session (max 500 chars per message)\n\nSteps:\n**Step 1:** Use 'Formfex SmartForm: Chat' to ask: \"What is the guest's overall sentiment? List positive and negative points.\"\n**Step 2:** Use 'Formfex SmartForm: Chat' to ask: \"Are there any urgent issues like safety, health, or major complaints?\"\n**Step 3:** Return JSON:\n{\n  \"classification\": \"URGENT\" | \"DISSATISFIED\" | \"NEUTRAL\" | \"SATISFIED\",\n  \"sentimentScore\": 0.0 to 1.0,\n  \"summary\": \"brief summary\",\n  \"urgentIssues\": \"any urgent issues or null\",\n  \"positives\": \"positive feedback points\",\n  \"negatives\": \"negative feedback points\",\n  \"actionRecommendation\": \"recommended action\"\n}\n\nIMPORTANT: Messages to chat tool MUST be under 500 characters. Be concise."
+        },
+        "promptType": "define",
+        "text": "={{ $json.agentInput }}"
+      },
+      "id": "wf27-monitor-agent",
+      "name": "AI Agent: Sentiment Analyzer",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        500,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {}
+      },
+      "id": "wf27-monitor-gemini",
+      "name": "Google Gemini Chat Model (Monitor)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        160,
+        1240
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_GOOGLE_GEMINI_CREDENTIAL_ID",
+          "name": "Google Gemini"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "smartForm",
+        "operation": "chat",
+        "smartFormId": "={{ $fromAI('smartFormId', 'UUID of the smart form', 'string') }}",
+        "message": "={{ $fromAI('message', 'Question about session data, max 500 chars', 'string') }}",
+        "conversationHistory": "[]"
+      },
+      "id": "wf27-monitor-tool-chat",
+      "name": "Formfex SmartForm: Chat (Monitor)",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        320,
+        1240
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      },
+      "usableAsTool": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.output || $input.first().json.text || '';\nlet result = {};\ntry {\n  const jsonMatch = output.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) result = JSON.parse(jsonMatch[0]);\n} catch(e) {}\n\nresult.classification = (result.classification || 'NEUTRAL').toUpperCase();\nresult.sentimentScore = result.sentimentScore || 0.5;\nresult.summary = result.summary || 'No summary available';\nresult.urgentIssues = result.urgentIssues || null;\nresult.positives = result.positives || 'N/A';\nresult.negatives = result.negatives || 'N/A';\nresult.actionRecommendation = result.actionRecommendation || 'No recommendation';\nresult.guestEmail = result.guestEmail || null;\n\nreturn [{ json: result }];"
+      },
+      "id": "wf27-monitor-parse",
+      "name": "Code: Parse Classification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.classification }}",
+                    "rightValue": "URGENT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "URGENT"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.classification }}",
+                    "rightValue": "DISSATISFIED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "DISSATISFIED"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.classification }}",
+                    "rightValue": "NEUTRAL",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NEUTRAL"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.classification }}",
+                    "rightValue": "SATISFIED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "SATISFIED"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "wf27-monitor-switch",
+      "name": "Switch: Route by Satisfaction",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        900,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "YOUR_SLACK_CHANNEL_ID",
+          "mode": "id"
+        },
+        "text": "=:rotating_light: *URGENT: Guest Issue Detected*\n\n*Classification:* {{ $json.classification }}\n*Summary:* {{ $json.summary }}\n*Urgent Issues:* {{ $json.urgentIssues }}\n*Recommendation:* {{ $json.actionRecommendation }}\n\n_Requires immediate attention_",
+        "otherOptions": {}
+      },
+      "id": "wf27-slack-urgent",
+      "name": "Slack: Urgent Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        800
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "YOUR_SLACK_CHANNEL_ID",
+          "mode": "id"
+        },
+        "text": "=:warning: *Dissatisfied Guest*\n\n*Summary:* {{ $json.summary }}\n*Negatives:* {{ $json.negatives }}\n*Recommendation:* {{ $json.actionRecommendation }}\n\n_Guest recovery action needed_",
+        "otherOptions": {}
+      },
+      "id": "wf27-slack-recovery",
+      "name": "Slack: Guest Recovery",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        1000
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "YOUR_SLACK_CHANNEL_ID",
+          "mode": "id"
+        },
+        "text": "=:clipboard: *Guest Feedback (Neutral)*\n\n*Summary:* {{ $json.summary }}\n*Positives:* {{ $json.positives }}\n*Negatives:* {{ $json.negatives }}",
+        "otherOptions": {}
+      },
+      "id": "wf27-slack-neutral",
+      "name": "Slack: Daily Feedback",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        1200
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "feedback@formfex.com",
+        "toEmail": "={{ $json.guestEmail || 'guest@example.com' }}",
+        "subject": "Thank you for your wonderful feedback!",
+        "emailType": "html",
+        "html": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;\">\n  <div style=\"background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;\">\n    <h1 style=\"color: white; margin: 0; font-size: 24px;\">Thank You!</h1>\n    <p style=\"color: rgba(255,255,255,0.9); margin: 10px 0 0 0;\">We appreciate your feedback</p>\n  </div>\n  <div style=\"background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none;\">\n    <p style=\"color: #374151; font-size: 16px; line-height: 1.6;\">Dear Guest,</p>\n    <p style=\"color: #374151; font-size: 16px; line-height: 1.6;\">Thank you for taking the time to share your experience with us. Your positive feedback means the world to our team and motivates us to continue delivering exceptional service.</p>\n    <p style=\"color: #374151; font-size: 16px; line-height: 1.6;\">If you enjoyed your stay, we would be grateful if you could share your experience on one of these platforms:</p>\n    <div style=\"text-align: center; margin: 25px 0;\">\n      <a href=\"https://www.google.com/maps\" style=\"display: inline-block; background: #4285F4; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; margin: 5px; font-weight: bold;\">Review on Google</a>\n      <a href=\"https://www.tripadvisor.com\" style=\"display: inline-block; background: #00AF87; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; margin: 5px; font-weight: bold;\">Review on TripAdvisor</a>\n    </div>\n    <p style=\"color: #374151; font-size: 16px; line-height: 1.6;\">We hope to welcome you back soon!</p>\n    <p style=\"color: #374151; font-size: 16px; line-height: 1.6;\">Warm regards,<br><strong>The Hotel Team</strong></p>\n  </div>\n  <div style=\"background: #f9fafb; padding: 15px; border-radius: 0 0 12px 12px; border: 1px solid #e5e7eb; border-top: none; text-align: center;\">\n    <p style=\"color: #9ca3af; font-size: 12px; margin: 0;\">Powered by Formfex</p>\n  </div>\n</div>",
+        "options": {}
+      },
+      "id": "wf27-email-thanks",
+      "name": "Email: Thank You",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1100,
+        1400
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "YOUR_SMTP_CREDENTIAL_ID",
+          "name": "SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code: Mock Guest Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Mock Guest Data": {
+      "main": [
+        [
+          {
+            "node": "Set: Prepare Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: Prepare Context": {
+      "main": [
+        [
+          {
+            "node": "AI Agent: Guest Interview Creator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent: Guest Interview Creator": {
+      "main": [
+        [
+          {
+            "node": "Code: Extract Form Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Extract Form Link": {
+      "main": [
+        [
+          {
+            "node": "Email: Invite Guest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent: Guest Interview Creator",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formfex Smart Form: Create": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent: Guest Interview Creator",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formfex Smart Form: Publish": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent: Guest Interview Creator",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formfex Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set: Prepare Sentiment Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: Prepare Sentiment Analysis": {
+      "main": [
+        [
+          {
+            "node": "AI Agent: Sentiment Analyzer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent: Sentiment Analyzer": {
+      "main": [
+        [
+          {
+            "node": "Code: Parse Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Parse Classification": {
+      "main": [
+        [
+          {
+            "node": "Switch: Route by Satisfaction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: Route by Satisfaction": {
+      "main": [
+        [
+          {
+            "node": "Slack: Urgent Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack: Guest Recovery",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack: Daily Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email: Thank You",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model (Monitor)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent: Sentiment Analyzer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formfex SmartForm: Chat (Monitor)": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent: Sentiment Analyzer",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "formfex-demo"
+    },
+    {
+      "name": "hotel"
+    },
+    {
+      "name": "ai-agent"
+    },
+    {
+      "name": "smart-form"
+    },
+    {
+      "name": "orchestrator"
+    }
+  ],
+  "id": "27"
+}

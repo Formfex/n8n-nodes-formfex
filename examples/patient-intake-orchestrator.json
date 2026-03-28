@@ -1,0 +1,505 @@
+{
+  "name": "Patient Intake Interview — Full Orchestrator (Create + Monitor)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# Patient Intake Interview — Full Orchestrator\n\n**Phase 1 (Top):** Appointment webhook → Craft purpose → Create Smart Form with referenceJson → Publish → Email patient\n**Phase 2 (Bottom):** Session completed webhook → AI Agent pre-analysis via SmartForm Chat → Merge into mappedData → Save to Notion\n\nCombines Create & Send (WF24) + Monitor & Save (WF25) into a single canvas.",
+        "width": 800,
+        "height": 240
+      },
+      "id": "wf26-note-overview",
+      "name": "Sticky Note — Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Phase 1 — Create & Send\nAppointment system sends patient data + referenceJson.\nCode node crafts department-specific purpose.\nSmart Form created with schema mapping.\nPatient receives email with interview link.",
+        "width": 500,
+        "height": 160,
+        "color": 4
+      },
+      "id": "wf26-note-phase1",
+      "name": "Sticky Note — Phase 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Phase 2 — Monitor & Save\nWebhook fires on session completion.\nAI Agent analyzes clinical data + emotional state.\nEnriched record saved to Notion for doctor review.",
+        "width": 500,
+        "height": 160,
+        "color": 5
+      },
+      "id": "wf26-note-phase2",
+      "name": "Sticky Note — Phase 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        780
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Example Webhook Payload\n```json\n{\n  \"patient_name\": \"Emma Wilson\",\n  \"patient_email\": \"emma@email.com\",\n  \"department\": \"Cardiology\",\n  \"doctor\": \"Dr. Mehmet Yilmaz\",\n  \"appointment_time\": \"2026-03-24T14:30:00\",\n  \"referenceJson\": { \"full_name\": \"string\", \"age\": 0, ... }\n}\n```",
+        "width": 500,
+        "height": 220,
+        "color": 4
+      },
+      "id": "wf26-note-payload",
+      "name": "Sticky Note — Payload",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        680,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Patient Record Output\nEnriched patient data (mapped fields + AI pre-analysis + emotional state) is sent as a JSON code block to the Slack #all-test channel for doctor review.",
+        "width": 500,
+        "height": 160,
+        "color": 5
+      },
+      "id": "wf26-note-notion",
+      "name": "Sticky Note — Notion Setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        680,
+        780
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "patient-intake-orchestrator",
+        "options": {}
+      },
+      "id": "wf26-webhook",
+      "name": "Appointment System Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -60,
+        300
+      ],
+      "webhookId": "patient-intake-orchestrator"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body;\nconst dept = body.department;\nconst name = body.patient_name;\nconst doctor = body.doctor;\nconst purpose = `You are a compassionate intake specialist at City Medical Center, ${dept} department. Conduct a warm, professional pre-visit interview with ${name} before their appointment with ${doctor}. Collect required medical data naturally through conversation — ask about symptoms, lifestyle, and medical history as a caring doctor would, not as a form. Be empathetic and reassuring. If the patient expresses anxiety, acknowledge their feelings.`;\nreturn [{\n  json: {\n    purpose,\n    title: `Pre-Visit Interview — ${name} (${dept})`,\n    referenceJson: body.referenceJson,\n    patient_name: name,\n    patient_email: body.patient_email,\n    department: dept,\n    doctor: doctor,\n    appointment_time: body.appointment_time\n  }\n}];"
+      },
+      "id": "wf26-craft-purpose",
+      "name": "Code: Craft Purpose",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "smartForm",
+        "operation": "create",
+        "purpose": "={{ $json.purpose }}",
+        "referenceJson": "={{ JSON.stringify($json.referenceJson) }}",
+        "additionalFields": {
+          "title": "={{ $json.title }}",
+          "maxQuestions": 5
+        }
+      },
+      "id": "wf26-create",
+      "name": "Formfex SmartForm: Create",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        400,
+        300
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "smartForm",
+        "operation": "publish",
+        "smartFormId": "={{ $json.id }}"
+      },
+      "id": "wf26-publish",
+      "name": "Formfex SmartForm: Publish",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        650,
+        300
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const publishResult = $input.first().json;\nconst craftPurpose = $('Code: Craft Purpose').first().json;\nconst smartFormId = publishResult.id || craftPurpose.smartFormId;\nlet formUrl = '';\nif (publishResult.shareUrl) {\n  formUrl = 'https://formfex.com/sf/' + publishResult.shareUrl;\n} else if (publishResult.publicUrl) {\n  formUrl = publishResult.publicUrl;\n} else if (smartFormId) {\n  formUrl = 'https://formfex.com/sf/' + smartFormId;\n}\nreturn [{\n  json: {\n    formUrl,\n    smartFormId,\n    patient_name: craftPurpose.patient_name,\n    patient_email: craftPurpose.patient_email,\n    department: craftPurpose.department,\n    doctor: craftPurpose.doctor,\n    appointment_time: craftPurpose.appointment_time\n  }\n}];"
+      },
+      "id": "wf26-prepare-email",
+      "name": "Code: Prepare Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "appointments@formfex.com",
+        "toEmail": "={{ $json.patient_email }}",
+        "subject": "=Prepare for your {{ $json.department }} appointment with {{ $json.doctor }}",
+        "emailType": "html",
+        "html": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;\">\n  <div style=\"background: #059669; padding: 30px; border-radius: 12px 12px 0 0; text-align: center;\">\n    <h1 style=\"color: #ffffff; margin: 0; font-size: 24px;\">Your Upcoming Appointment</h1>\n  </div>\n  <div style=\"background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none;\">\n    <p style=\"color: #374151; font-size: 16px; line-height: 1.6;\">Dear {{ $json.patient_name }},</p>\n    <p style=\"color: #374151; font-size: 16px; line-height: 1.6;\">Your <strong>{{ $json.department }}</strong> appointment with <strong>{{ $json.doctor }}</strong> is scheduled for <strong>{{ $json.appointment_time }}</strong>.</p>\n    <p style=\"color: #374151; font-size: 16px; line-height: 1.6;\">Please complete this brief pre-visit interview so your doctor can better prepare for your visit.</p>\n    <div style=\"text-align: center; margin: 30px 0;\">\n      <a href=\"{{ $json.formUrl }}\" style=\"background: #059669; color: #ffffff; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: 600; display: inline-block;\">Start Pre-Visit Interview</a>\n    </div>\n    <p style=\"color: #6b7280; font-size: 14px; line-height: 1.5;\">This interview takes approximately 5-10 minutes. Your responses are confidential and will only be shared with your care team.</p>\n  </div>\n  <div style=\"text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;\">\n    <p>City Medical Center</p>\n  </div>\n</div>",
+        "options": {}
+      },
+      "id": "wf26-email",
+      "name": "Email: Send to Patient",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1000,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "YOUR_SMTP_CREDENTIAL_ID",
+          "name": "SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "event": "SMART_FORM_SESSION_COMPLETED",
+        "options": {}
+      },
+      "id": "wf26-monitor-webhook",
+      "name": "Formfex Webhook Trigger",
+      "type": "n8n-nodes-formfex.formfexWebhookTrigger",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        1000
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "agentInput",
+              "value": "=A patient intake interview was completed.\n\nAnalysis summary: {{ $json.analysis?.summary || 'N/A' }}\nInsights: {{ ($json.analysis?.insights || []).join('; ') }}\nUrgent issues: {{ ($json.analysis?.urgentIssues || []).join('; ') || 'none' }}\nNegatives: {{ ($json.analysis?.negativePoints || []).join('; ') || 'none' }}\nPositives: {{ ($json.analysis?.positivePoints || []).join('; ') || 'none' }}\n\nProvide clinical pre-analysis and emotional state assessment.",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "smartFormId",
+              "value": "={{ $json.smartFormId }}",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "analysisData",
+              "value": "={{ JSON.stringify($json.analysis || {}) }}",
+              "type": "string"
+            },
+            {
+              "id": "4",
+              "name": "mappedData",
+              "value": "={{ JSON.stringify($json.mappedData || {}) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "wf26-monitor-set",
+      "name": "Set: Prepare Analysis",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are a medical AI pre-analysis assistant. You analyze patient intake data for doctors.\n\nTool:\n- Formfex SmartForm: Chat — Discuss session data (max 500 chars per message)\n\nSteps:\n**Step 1 — Clinical Pre-Analysis:**\nUse 'Formfex SmartForm: Chat': \"Summarize key health concerns. Cross-reference symptoms with conditions.\"\n\n**Step 2 — Emotional State:**\nUse 'Formfex SmartForm: Chat': \"Assess patient emotional state. Note anxiety, stress, tone.\"\n\n**Step 3 — Return:**\n{\n  \"pre_analysis\": \"[age][sex], [dept]. [complaint] x [duration], hx [conditions] on [meds]. [allergies]. Recommend: [tests]. Urgency: HIGH|MEDIUM|LOW\",\n  \"emotional_state\": \"Assessment of anxiety, stress, communication style, doctor approach recommendations\"\n}\n\nIMPORTANT: Keep chat messages under 500 chars. Be clinically precise in pre_analysis, empathetic in emotional_state."
+        },
+        "promptType": "define",
+        "text": "={{ $json.agentInput }}"
+      },
+      "id": "wf26-monitor-agent",
+      "name": "AI Agent: Pre-Analysis",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        500,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {}
+      },
+      "id": "wf26-monitor-gemini",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        160,
+        1240
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_GOOGLE_GEMINI_CREDENTIAL_ID",
+          "name": "Google Gemini"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "smartForm",
+        "operation": "chat",
+        "smartFormId": "={{ $('Set: Prepare Analysis').item.json.smartFormId }}",
+        "message": "={{ $fromAI('message', 'Question about patient data, max 500 chars', 'string') }}",
+        "conversationHistory": "[]"
+      },
+      "id": "wf26-monitor-tool-chat",
+      "name": "Formfex SmartForm: Chat",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        320,
+        1240
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      },
+      "usableAsTool": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.output || $input.first().json.text || '';\nlet agentAnalysis = {};\ntry {\n  const jsonMatch = output.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) agentAnalysis = JSON.parse(jsonMatch[0]);\n} catch(e) {}\n\nconst setData = $('Set: Prepare Analysis').first().json;\nlet mappedData = {};\ntry { mappedData = JSON.parse(setData.mappedData || '{}') || {}; } catch(e) { mappedData = {}; }\nlet analysisData = {};\ntry { analysisData = JSON.parse(setData.analysisData || '{}') || {}; } catch(e) { analysisData = {}; }\n\nconst record = {\n  ...mappedData,\n  summary: analysisData.summary || null,\n  insights: analysisData.insights || [],\n  urgentIssues: analysisData.urgentIssues || [],\n  pre_analysis: agentAnalysis.pre_analysis || 'Analysis unavailable',\n  emotional_state: agentAnalysis.emotional_state || 'Assessment unavailable'\n};\n\nreturn [{ json: { mappedData: record, analysis: agentAnalysis } }];"
+      },
+      "id": "wf26-monitor-merge",
+      "name": "Code: Merge Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        1000
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "YOUR_SLACK_CHANNEL_ID",
+          "mode": "id"
+        },
+        "text": "=:hospital: *Patient Intake Record*\n\n```{{ JSON.stringify($json.mappedData, null, 2) }}```",
+        "otherOptions": {}
+      },
+      "id": "wf26-monitor-slack",
+      "name": "Slack: Save Patient Record",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        900,
+        1000
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Appointment System Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code: Craft Purpose",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Craft Purpose": {
+      "main": [
+        [
+          {
+            "node": "Formfex SmartForm: Create",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formfex SmartForm: Create": {
+      "main": [
+        [
+          {
+            "node": "Formfex SmartForm: Publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formfex SmartForm: Publish": {
+      "main": [
+        [
+          {
+            "node": "Code: Prepare Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Prepare Email": {
+      "main": [
+        [
+          {
+            "node": "Email: Send to Patient",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formfex Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set: Prepare Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set: Prepare Analysis": {
+      "main": [
+        [
+          {
+            "node": "AI Agent: Pre-Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent: Pre-Analysis": {
+      "main": [
+        [
+          {
+            "node": "Code: Merge Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Merge Analysis": {
+      "main": [
+        [
+          {
+            "node": "Slack: Save Patient Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent: Pre-Analysis",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formfex SmartForm: Chat": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent: Pre-Analysis",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "formfex-demo"
+    },
+    {
+      "name": "medical"
+    },
+    {
+      "name": "smart-form"
+    },
+    {
+      "name": "schema-mapping"
+    },
+    {
+      "name": "ai-agent"
+    },
+    {
+      "name": "orchestrator"
+    }
+  ],
+  "id": "26"
+}

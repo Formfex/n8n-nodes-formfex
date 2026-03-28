@@ -1,0 +1,458 @@
+{
+  "name": "E-commerce Post-Delivery — Full Orchestrator (Create + Monitor)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# E-commerce Post-Delivery — Full Orchestrator\n\nTwo phases in one workflow:\n\n**Phase 1 — Upper Section (Create & Send)**\nDelivery webhook fires → Wait 2 hours → Formfex AI generates a product-specific review form (creates it automatically) → Form published → Form registered for monitoring → Email sent to customer\n\n**Phase 2 — Lower Section (Monitor & Analyze)**\nFormfex Webhook Trigger fires on each new review → Response count checked → At 50+ reviews: full AI product analysis → Slack → Under 50: AI one-sentence summary → Push to store API\n\n**Connection:** Phase 1 creates and registers the review form, Phase 2 monitors it via webhook",
+        "width": 900,
+        "height": 280
+      },
+      "id": "orch-1400-0000-0000-000000000000",
+      "name": "Sticky Note — Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Phase 1 — Create & Send Review Request\n\nTriggered when a delivery is confirmed.\nWaits 2 hours, then Formfex AI generates AND creates a product-specific review form.\nForm is published, registered for webhook monitoring, and emailed to the customer.",
+        "width": 440,
+        "height": 160,
+        "color": 4
+      },
+      "id": "orch-1400-0000-0000-000000000001",
+      "name": "Sticky Note — Phase 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Phase 2 — Monitor & Analyze Reviews\n\nFormfex Webhook Trigger fires on every new review — formId comes from the webhook payload.\n\n**Track A (50+ reviews):** Full AI product analysis → Slack\n**Track B (under 50):** AI one-sentence summary → Push to store API",
+        "width": 520,
+        "height": 160,
+        "color": 6
+      },
+      "id": "orch-1400-0000-0000-000000000002",
+      "name": "Sticky Note — Phase 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -100,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "delivery-confirmed",
+        "options": {}
+      },
+      "id": "orch-1401-0001-4000-8000-000000000001",
+      "name": "Delivery Confirmed Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -60,
+        300
+      ],
+      "webhookId": "delivery-confirmed"
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "hours"
+      },
+      "id": "orch-1401-0001-4000-8000-000000000002",
+      "name": "Wait 2 Hours",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "ai",
+        "operation": "generateForm",
+        "title": "=Review: {{ $('Delivery Confirmed Webhook').item.json.body.productName }}",
+        "prompt": "=Create a product review form. CRITICAL: The questions must be specific to THIS exact product — not generic \"rate your purchase\" questions.\n\nProduct & order context:\n- Product: {{ $('Delivery Confirmed Webhook').item.json.body.productName }}\n- Category: {{ $('Delivery Confirmed Webhook').item.json.body.category }}\n- Subcategory: {{ $('Delivery Confirmed Webhook').item.json.body.subcategory }}\n- Brand: {{ $('Delivery Confirmed Webhook').item.json.body.brand }}\n- Price: ${{ $('Delivery Confirmed Webhook').item.json.body.price }}\n- Product attributes: {{ JSON.stringify($('Delivery Confirmed Webhook').item.json.body.attributes) }}\n- Is repeat purchase: {{ $('Delivery Confirmed Webhook').item.json.body.isRepeatPurchase }}\n- Customer order count: {{ $('Delivery Confirmed Webhook').item.json.body.totalOrders }}\n- Size/variant ordered: {{ $('Delivery Confirmed Webhook').item.json.body.variant || 'N/A' }}\n\nDYNAMIC RULES — form MUST change based on product data:\n1. Overall rating (1-5 stars) — always include\n2. CATEGORY + SUBCATEGORY specific questions (e.g. Electronics > Headphones: sound quality, comfort; Clothing > Shoes: size accuracy, arch support; Home > Kitchen: ease of cleaning)\n3. PRICE-BASED expectations (under $25: value focus; $100+: premium/unboxing experience; $500+: luxury/craftsmanship)\n4. If isRepeatPurchase: ask comparison with previous purchase\n5. If totalOrders > 5: shorter form (max 4 questions, respect loyal customer time)\n6. If totalOrders === 1: include shopping experience and discovery questions\n7. If variant exists: ask about variant accuracy\n8. Always end with photo upload (optional) + open text review",
+        "language": "={{ $('Delivery Confirmed Webhook').item.json.body.customerLanguage || 'en' }}"
+      },
+      "id": "orch-1401-0001-4000-8000-000000000003",
+      "name": "AI: Generate Review Form",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "form",
+        "operation": "publish",
+        "formId": "={{ $json.id }}",
+        "publishFields": {
+          "visibility": "PUBLIC"
+        }
+      },
+      "id": "orch-1401-0001-4000-8000-000000000005",
+      "name": "Publish Review Form",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        720,
+        300
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Register this form for webhook monitoring\nconst formId = $input.first().json.id;\nconst shareUrl = $input.first().json.shareUrl;\nconst staticData = $getWorkflowStaticData('global');\nconst watchedFormIds = staticData.watchedFormIds ?? [];\nif (formId && !watchedFormIds.includes(formId)) {\n  watchedFormIds.push(formId);\n  staticData.watchedFormIds = watchedFormIds;\n}\nreturn [{ json: { ...($input.first().json), formId, shareUrl } }];"
+      },
+      "id": "orch-1401-0001-4000-8000-000000000007",
+      "name": "Register Form for Monitoring",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "reviews@formfex.com",
+        "toEmail": "={{ $('Delivery Confirmed Webhook').item.json.body.customerEmail }}",
+        "subject": "=How's your {{ $('Delivery Confirmed Webhook').item.json.body.productName }}? Leave a quick review!",
+        "emailType": "html",
+        "html": "=<div style=\"font-family:sans-serif;max-width:600px;margin:0 auto;\">\n<h2>Hey {{ $('Delivery Confirmed Webhook').item.json.body.customerName }}!</h2>\n<p>Your <strong>{{ $('Delivery Confirmed Webhook').item.json.body.productName }}</strong> was delivered. How is it?</p>\n<p>Help fellow shoppers by sharing your honest review:</p>\n<p style=\"text-align:center;margin:24px 0;\">\n<a href=\"https://formfex.com/forms/response/{{ $json.shareUrl }}\" style=\"background:#f59e0b;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:16px;font-weight:bold;\">Write Your Review</a>\n</p>\n<p style=\"color:#6b7280;font-size:14px;\">Takes less than 2 minutes. Your review makes a difference!</p>\n</div>"
+      },
+      "id": "orch-1401-0001-4000-8000-000000000006",
+      "name": "Email Customer",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1140,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "YOUR_SMTP_CREDENTIAL_ID",
+          "name": "SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "event": "FORM_RESPONSE_CREATED"
+      },
+      "id": "orch-1402-0001-4000-8000-000000000001",
+      "name": "New Product Review",
+      "type": "n8n-nodes-formfex.formfexWebhookTrigger",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        960
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "response",
+        "operation": "count",
+        "formId": "={{ $('New Product Review').item.json.formId }}"
+      },
+      "id": "orch-1402-0001-4000-8000-000000000002",
+      "name": "Review Count",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        200,
+        960
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "1",
+              "leftValue": "={{ $json.count }}",
+              "rightValue": 50,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "orch-1402-0001-4000-8000-000000000003",
+      "name": "50+ Reviews?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        460,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "ai",
+        "operation": "analyticsChat",
+        "formId": "={{ $('New Product Review').item.json.formId }}",
+        "message": "Analyze all product reviews: average star rating, top 3 praised aspects with %, top 3 complaints with %, recommendation rate, best positive quote, most constructive criticism, would-buy-again %. Format as a product team briefing.",
+        "sessionId": ""
+      },
+      "id": "orch-1402-0001-4000-8000-000000000004",
+      "name": "AI: Product Analysis",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        720,
+        860
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "YOUR_SLACK_CHANNEL_ID",
+          "mode": "id"
+        },
+        "text": "=:star: *Product Review Analysis* ({{ $('Review Count').item.json.count }} reviews collected)\n\n{{ $json.answer }}\n\n_Formfex AI — auto-analysis at 50-review milestone_",
+        "otherOptions": {}
+      },
+      "id": "orch-1402-0001-4000-8000-000000000005",
+      "name": "Slack: Product Insights",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        980,
+        860
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "YOUR_SLACK_CREDENTIAL_ID",
+          "name": "Slack"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "ai",
+        "operation": "analyticsChat",
+        "formId": "={{ $('New Product Review').item.json.formId }}",
+        "message": "Look at the most recent review only. Give me a one-sentence summary and the star rating. Format: \"[RATING] stars — [summary]\"",
+        "sessionId": ""
+      },
+      "id": "orch-1402-0001-4000-8000-000000000006",
+      "name": "AI: Latest Review Summary",
+      "type": "n8n-nodes-formfex.formfex",
+      "typeVersion": 1,
+      "position": [
+        720,
+        1080
+      ],
+      "credentials": {
+        "formfexApi": {
+          "id": "YOUR_FORMFEX_CREDENTIAL_ID",
+          "name": "Formfex API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// MOCK — Simulates POST /api/products/{id}/reviews\n// In production this would push the AI review summary to the store API\nconst reviewSummary = $input.first().json.answer || 'No summary available';\nreturn [{\n  json: {\n    success: true,\n    message: 'Review summary pushed to store (MOCK)',\n    productId: 'mock-product-123',\n    reviewSummary: reviewSummary,\n    source: 'formfex',\n    pushedAt: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "orch-1402-0001-4000-8000-000000000007",
+      "name": "Push to Store API",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        1080
+      ]
+    }
+  ],
+  "connections": {
+    "Delivery Confirmed Webhook": {
+      "main": [
+        [
+          {
+            "node": "Wait 2 Hours",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2 Hours": {
+      "main": [
+        [
+          {
+            "node": "AI: Generate Review Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Generate Review Form": {
+      "main": [
+        [
+          {
+            "node": "Publish Review Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish Review Form": {
+      "main": [
+        [
+          {
+            "node": "Register Form for Monitoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Register Form for Monitoring": {
+      "main": [
+        [
+          {
+            "node": "Email Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Product Review": {
+      "main": [
+        [
+          {
+            "node": "Review Count",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Review Count": {
+      "main": [
+        [
+          {
+            "node": "50+ Reviews?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "50+ Reviews?": {
+      "main": [
+        [
+          {
+            "node": "AI: Product Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI: Latest Review Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Product Analysis": {
+      "main": [
+        [
+          {
+            "node": "Slack: Product Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI: Latest Review Summary": {
+      "main": [
+        [
+          {
+            "node": "Push to Store API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "formfex-demo"
+    },
+    {
+      "name": "e-commerce"
+    },
+    {
+      "name": "orchestrator"
+    },
+    {
+      "name": "webhook"
+    }
+  ],
+  "id": "14"
+}
