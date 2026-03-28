@@ -139,6 +139,10 @@ export class FormfexWebhookTrigger implements INodeType {
           const webhook = result.data ?? result;
           const staticData = this.getWorkflowStaticData('node');
           staticData.webhookId = webhook.id;
+          // Store the full secret at creation time for HMAC verification
+          if (webhook.secret) {
+            staticData.webhookSecret = webhook.secret;
+          }
 
           return true;
         } catch (error: any) {
@@ -179,16 +183,35 @@ export class FormfexWebhookTrigger implements INodeType {
     const signatureHeader = req.headers['x-formfex-signature'] as
       | string
       | undefined;
+    const staticData = this.getWorkflowStaticData('node');
+    const webhookSecret = staticData.webhookSecret as string | undefined;
 
-    // We don't have the secret in the trigger (API returns masked secret).
-    // Signature verification is best-effort: if the header is present we log it
-    // but cannot verify without the full secret. The webhook URL itself is
-    // unguessable (n8n generates a random path), providing baseline security.
+    if (signatureHeader && webhookSecret) {
+      const expected = crypto
+        .createHmac('sha256', webhookSecret)
+        .update(JSON.stringify(body))
+        .digest('hex');
+      const expectedHeader = `sha256=${expected}`;
+      try {
+        if (
+          !crypto.timingSafeEqual(
+            Buffer.from(signatureHeader),
+            Buffer.from(expectedHeader),
+          )
+        ) {
+          return { noWebhookResponse: true };
+        }
+      } catch {
+        // Length mismatch — signature invalid
+        return { noWebhookResponse: true };
+      }
+    }
 
     // ── Form ID filtering ──
     const formIdsParam = this.getNodeParameter('formIds', '') as string;
-    const staticData = this.getWorkflowStaticData('node');
-    const dynamicFormIds = (staticData.watchedFormIds as string[]) ?? [];
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const dynamicFormIds = ((staticData.watchedFormIds as string[]) ?? [])
+      .filter((id): id is string => typeof id === 'string' && UUID_RE.test(id));
 
     // Merge static param + dynamic list
     const allowedFormIds = new Set<string>([

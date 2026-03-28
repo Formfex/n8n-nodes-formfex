@@ -70,7 +70,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// MOCK DATA — Simulates GET /api/employees?startDate=30days&status=active\nreturn [\n  {\n    json: {\n      name: 'Cihan Tamyıldırım',\n      email: 'ctamyildirim@gmail.com',\n      department: 'Engineering',\n      role: 'Frontend Developer',\n      seniority: 'junior',\n      managerName: 'Can Yılmaz',\n      teamSize: 8,\n      workMode: 'remote',\n      officeLocation: null,\n      toolsProvisioned: ['GitHub', 'Jira', 'Slack', 'Figma', 'VS Code', 'Vercel'],\n      buddyName: 'Mehmet Kaya',\n      completedTrainings: ['Company Culture 101', 'Security Basics', 'Git Workflow'],\n      pendingTrainings: ['CI/CD Pipeline', 'Code Review Standards'],\n      preferredLanguage: 'tr'\n    }\n  }\n];"
+        "jsCode": "// MOCK DATA — Simulates GET /api/employees?startDate=30days&status=active\nreturn [\n  {\n    json: {\n      name: 'Alex Rivera',\n      email: 'alex.rivera@example.com',\n      department: 'Engineering',\n      role: 'Frontend Developer',\n      seniority: 'junior',\n      managerName: 'Jordan Smith',\n      teamSize: 8,\n      workMode: 'remote',\n      officeLocation: null,\n      toolsProvisioned: ['GitHub', 'Jira', 'Slack', 'Figma', 'VS Code', 'Vercel'],\n      buddyName: 'Sam Patel',\n      completedTrainings: ['Company Culture 101', 'Security Basics', 'Git Workflow'],\n      pendingTrainings: ['CI/CD Pipeline', 'Code Review Standards'],\n      preferredLanguage: 'tr'\n    }\n  }\n];"
       },
       "id": "ai-1701-0001-4000-8000-000000000002",
       "name": "Get 30-Day Employees",

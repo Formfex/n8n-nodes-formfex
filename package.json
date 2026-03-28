@@ -36,7 +36,7 @@
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
-    "n8n-workflow": "*"
+    "n8n-workflow": ">=2.11.0 <3.0.0"
   },
   "devDependencies": {
     "n8n-workflow": "^2.11.0",

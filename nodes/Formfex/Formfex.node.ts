@@ -11,7 +11,7 @@ import { responseOperations, responseFields } from './descriptions/response.desc
 import { aiOperations, aiFields } from './descriptions/ai.description';
 import { webhookOperations, webhookFields } from './descriptions/webhook.description';
 import { smartFormOperations, smartFormFields } from './descriptions/smartForm.description';
-import { formfexApiRequest, validateUuid, safePath, MAX_PAGES } from './helpers';
+import { formfexApiRequest, validateUuid, validateHttpsUrl, safePath, sanitizeError, MAX_PAGES } from './helpers';
 
 export class Formfex implements INodeType {
   description: INodeTypeDescription = {
@@ -89,7 +89,10 @@ export class Formfex implements INodeType {
         }
       } catch (error) {
         if (this.continueOnFail()) {
-          returnData.push({ json: { error: (error as Error).message }, pairedItem: { item: i } });
+          const safeMessage = error instanceof Error
+            ? sanitizeError(error.message)
+            : 'An unexpected error occurred';
+          returnData.push({ json: { error: safeMessage }, pairedItem: { item: i } });
           continue;
         }
         throw error;
@@ -372,6 +375,7 @@ async function executeAiOperation(
     const formId = this.getNodeParameter('formId', i) as string;
     validateUuid(this, formId, 'Form ID');
     const callbackUrl = this.getNodeParameter('callbackUrl', i) as string;
+    validateHttpsUrl(this, callbackUrl, 'Callback URL');
     const result = await formfexApiRequest.call(this, 'POST', `/forms/${safePath(formId)}/smart-analytics`, { callbackUrl });
     return result.data;
   }
@@ -400,6 +404,7 @@ async function executeWebhookOperation(
 ): Promise<any> {
   if (operation === 'create') {
     const url = this.getNodeParameter('webhookUrl', i) as string;
+    validateHttpsUrl(this, url, 'Webhook URL');
     const events = this.getNodeParameter('events', i) as string[];
     const description = this.getNodeParameter('webhookDescription', i, '') as string;
 

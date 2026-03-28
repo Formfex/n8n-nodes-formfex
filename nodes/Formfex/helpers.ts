@@ -21,6 +21,29 @@ export function validateUuid(
   }
 }
 
+/** Validates a URL is absolute and uses HTTPS. Throws NodeApiError if not. */
+export function validateHttpsUrl(
+  context: IExecuteFunctions | IHookFunctions | ILoadOptionsFunctions | IPollFunctions,
+  value: string,
+  fieldName: string,
+): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new NodeApiError(context.getNode(), {
+      message: `Invalid ${fieldName}`,
+      description: `"${fieldName}" must be a valid absolute URL.`,
+    });
+  }
+  if (parsed.protocol !== 'https:') {
+    throw new NodeApiError(context.getNode(), {
+      message: `${fieldName} must use HTTPS`,
+      description: `Received protocol: "${parsed.protocol}". Only HTTPS URLs are allowed.`,
+    });
+  }
+}
+
 /** Safe URL path encoding for user-supplied IDs. */
 export function safePath(id: string): string {
   return encodeURIComponent(id);
